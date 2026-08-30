@@ -12,8 +12,8 @@ export default {
   url: "https://hypotenuseanalytics.com",
   baseUrl: "/docs/",
 
-  organizationName: "hypotenuse-analytics",
-  projectName: "hypotenuse-docs",
+  organizationName: "necrosyth",
+  projectName: "hypotenuse",
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",
@@ -30,7 +30,7 @@ export default {
         docs: {
           sidebarPath: "./sidebars.js",
           routeBasePath: "/",
-          editUrl: "https://github.com/hypotenuse-analytics/hypotenuse",
+          editUrl: "https://github.com/Necrosyth/hypotenuse",
         },
         blog: false,
         theme: {
@@ -58,7 +58,7 @@ export default {
             label: "Documentation",
           },
           {
-            href: "https://github.com/hypotenuse-analytics",
+            href: "https://github.com/Necrosyth/hypotenuse",
             label: "GitHub",
             position: "right",
           },
