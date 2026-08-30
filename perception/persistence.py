@@ -44,6 +44,16 @@ def event_id(camera: str, zone: str, global_track_id: int, started_ts: float) ->
     return uuid.uuid5(AINA_NAMESPACE, f"enter:{camera}:{zone}:{global_track_id}:{started_ts:.6f}")
 
 
+def behavior_event_id(event_type: str, camera: str, zone: str | None, global_track_id: int, started_ts: float) -> uuid.UUID:
+    """Deterministic uuid for a behavior-module event row.
+
+    Includes ``event_type`` so loitering/tailgating/etc. never collide with the
+    ``entered_zone`` rows that ``event_id()`` names, and so replaying the same
+    episode is an idempotent no-op (INSERT ... ON CONFLICT DO NOTHING).
+    """
+    return uuid.uuid5(AINA_NAMESPACE, f"event:{event_type}:{camera}:{zone}:{global_track_id}:{started_ts:.6f}")
+
+
 class _Ops:
     """SQL templates; each submitted op is a dict keyed by these op names."""
 
@@ -83,6 +93,14 @@ class _Ops:
     SELECT_EVENT_OPEN = (
         "SELECT ended_at IS NULL FROM events WHERE track_id = %s AND zone_id = %s "
         "AND event_type = 'entered_zone' AND ended_at IS NULL LIMIT 1"
+    )
+    INSERT_EVENT = (
+        "INSERT INTO events (id, camera_id, track_id, zone_id, event_type, started_at, severity, data) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb) ON CONFLICT DO NOTHING"
+    )
+    END_EVENT = (
+        "UPDATE events SET ended_at = %s "
+        "WHERE track_id = %s AND event_type = %s AND ended_at IS NULL"
     )
 
 
@@ -257,6 +275,8 @@ def _sql_for(op: dict[str, Any]) -> str | None:
         "insert_detection": _Ops.INSERT_DETECTION,
         "enter_zone": _Ops.ENTER_ZONE,
         "end_zone": _Ops.END_ZONE,
+        "insert_event": _Ops.INSERT_EVENT,
+        "end_event": _Ops.END_EVENT,
     }.get(op["op"])
 
 
@@ -294,6 +314,19 @@ def _params_for(op: dict[str, Any]) -> tuple[Any, ...]:
         )
     if kind == "end_zone":
         return (op["ended_at"], op["track_uid"], op["zone_uid"])
+    if kind == "insert_event":
+        return (
+            op["event_uid"],
+            op["camera_uid"],
+            op.get("track_uid"),
+            op.get("zone_uid"),
+            op["event_type"],
+            op["started_at"],
+            op.get("severity", "detection"),
+            json_dumps(op.get("data", {})),
+        )
+    if kind == "end_event":
+        return (op["ended_at"], op["track_uid"], op["event_type"])
     raise ValueError(f"persistence op {kind!r} has no params mapping")
 
 

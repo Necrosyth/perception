@@ -20,6 +20,7 @@ shown as shipped / in progress / planned.
 | Tracking + jitter elimination | 4 | Numeric harness pass; `trackers` package backend |
 | Data layer (Postgres/pgvector) | 5 | All 8 tables; DoD reconstruction query verified on GPU vs live Postgres |
 | Dashboard live streams | 10 (part) | Live grid + camera detail real `<video>` over MSE |
+| Loitering | 6 | Dwell state machine on zone membership; debounced `(event_type, tracker_id)`; config-toggle proven live (events persisted only when armed) |
 
 ## In progress
 
@@ -32,8 +33,6 @@ shown as shipped / in progress / planned.
 
 ## Planned
 
-- **Stage 6 — Loitering.** `behavior.loitering` module; debounced `(event_type, tracker_id)`; the
-  first proof of the no-coupling + config-toggle rules under real footage.
 - **Stage 7 — Embeddings & semantic search.** Local CLIP on finalized-track thumbnails (async, off
   the hot path) → `embeddings` (pgvector); NL query → `{structured_filters, semantic_text}` →
   filtered vector search; wire the Explore page.
@@ -56,8 +55,8 @@ Appendix C of the build prompt):
 
 ## Testing & quality gates
 
-- `python3 -m pytest perception/tests/ -q` — 75 passing (orchestrator, config, smoothing, tracker
-  params, persistence, jitter harness).
+- `python3 -m pytest perception/tests/ -q` — 96 passing (orchestrator, config, smoothing, tracker
+  params, persistence, jitter harness, loitering).
 - `npm run build` in `dashboard/` — tsc + Vite must pass before any dashboard change ships.
 - Numeric thresholds gate tracking (jitter), never "looks fine".
 

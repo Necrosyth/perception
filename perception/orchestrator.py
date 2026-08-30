@@ -138,6 +138,12 @@ class Orchestrator:
                 params["_zones_by_source"] = zones_by_source
             if name == "persistence":
                 params["_camera_defs"] = camera_defs
+                # Only sink behavior events when an *enabled* behavior module
+                # produces them; otherwise persistence must not require "events"
+                # (that would auto-enable a behavior module toggled off).
+                params["_behavior_events"] = [
+                    n for n in self.enabled if "events" in self._contracts[n][1]
+                ]
             module.configure(params)
             module.smoothing = dict(config.smoothing)
             self._modules[name] = module

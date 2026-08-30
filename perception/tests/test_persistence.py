@@ -14,6 +14,7 @@ from perception.modules.persistence import Persistence
 from perception.modules.tracking import Track, Tracks
 from perception.persistence import (
     DatabaseWriter,
+    behavior_event_id,
     camera_id,
     event_id,
     track_uuid,
@@ -237,6 +238,94 @@ class TestModuleLogic:
         assert len(finals) == 1
         assert finals[0]["track_uid"] == track_uuid("loading_dock", 1)
 
+    def test_behavior_event_rows_are_sunk(self):
+        ops: list[dict] = []
+        module = _make_module(FakeWriter(ops=ops))
+        module.configure({"_behavior_events": ["behavior_loitering"]})
+
+        rows = [
+            {
+                "camera": "loading_dock",
+                "track_id": 1,
+                "zone": "dock_entry",
+                "event_type": "loitering",
+                "started_at": 1000.0,
+                "ended_at": None,
+                "severity": "alert",
+                "data": {"dwell_seconds": 5.0, "threshold_seconds": 5.0},
+            },
+            {
+                "camera": "loading_dock",
+                "track_id": 1,
+                "zone": "dock_entry",
+                "event_type": "loitering",
+                "started_at": 1000.0,
+                "ended_at": 1006.0,
+                "severity": "alert",
+                "data": {"dwell_seconds": 6.0, "threshold_seconds": 5.0},
+            },
+        ]
+        payload = {"events": rows}
+        module.process(
+            _frame(),
+            {
+                "detections": _detections(),
+                "tracks": [_tracks()],
+                zone_key(): [_membership("loading_dock", 1, [])],
+                CAP["events"].key: [payload],
+            },
+        )
+
+        kinds = [op["op"] for op in ops]
+        assert kinds.count("insert_event") == 1
+        assert kinds.count("end_event") == 1
+        ins = next(op for op in ops if op["op"] == "insert_event")
+        assert ins["camera_uid"] == camera_id("loading_dock")
+        assert ins["track_uid"] == track_uuid("loading_dock", 1)
+        assert ins["zone_uid"] == zone_id("loading_dock", "dock_entry")
+        assert ins["event_uid"] == behavior_event_id("loitering", "loading_dock", "dock_entry", 1, 1000.0)
+        assert ins["severity"] == "alert"
+        from datetime import datetime, timezone
+
+        assert ins["started_at"] == datetime.fromtimestamp(1000.0, tz=timezone.utc)
+        end = next(op for op in ops if op["op"] == "end_event")
+        assert end["track_uid"] == track_uuid("loading_dock", 1)
+        assert end["ended_at"] == datetime.fromtimestamp(1006.0, tz=timezone.utc)
+        assert end["event_type"] == "loitering"
+
+    def test_behavior_sink_ignored_when_no_behavior_enabled(self):
+        ops: list[dict] = []
+        module = _make_module(FakeWriter(ops=ops))  # default: _sink_events False
+        payload = {"events": [{"camera": "loading_dock", "track_id": 1, "event_type": "loitering",
+                               "started_at": 1000.0, "ended_at": None}]}
+        module.process(
+            _frame(),
+            {
+                "detections": _detections(),
+                "tracks": [_tracks()],
+                zone_key(): [_membership("loading_dock", 1, [])],
+                CAP["events"].key: [payload],
+            },
+        )
+        assert all(op["op"] != "insert_event" for op in ops)
+
+    def test_behavior_sink_ignores_unknown_camera(self):
+        ops: list[dict] = []
+        module = _make_module(FakeWriter(ops=ops))
+        module.configure({"_behavior_events": ["behavior_loitering"]})
+        payload = {"events": [{"camera": "ghost_cam", "track_id": 9, "event_type": "loitering",
+                               "started_at": 1.0, "ended_at": None}]}
+        module.process(
+            _frame(),
+            {
+                "detections": _detections(),
+                "tracks": [_tracks()],
+                zone_key(): [_membership("loading_dock", 1, [])],
+                CAP["events"].key: [payload],
+            },
+        )
+        assert ops == []
+
 
 class TestWriterOps:
     def _params(self, op: dict):
@@ -306,6 +395,50 @@ class TestWriterOps:
         # (event_uid, camera_uid, track_uid, zone_uid, started_at, data_json)
         assert p[0] == event_id("c", "z", 1, 1.0)
         assert p[4] == 1000.0 and p[5] == "{}"
+
+    def test_insert_event_params(self):
+        p = self._params(
+            {
+                "op": "insert_event",
+                "event_uid": behavior_event_id("loitering", "c", "z", 1, 1000.0),
+                "camera_uid": camera_id("c"),
+                "track_uid": track_uuid("c", 1),
+                "zone_uid": zone_id("c", "z"),
+                "event_type": "loitering",
+                "started_at": 1000.0,
+                "severity": "alert",
+                "data": {"dwell_seconds": 5.0, "threshold_seconds": 5.0},
+            }
+        )
+        # (event_uid, camera_uid, track_uid, zone_uid, event_type, started_at, severity, data_json)
+        assert p[0] == behavior_event_id("loitering", "c", "z", 1, 1000.0)
+        assert p[4] == "loitering" and p[5] == 1000.0 and p[6] == "alert"
+        assert p[7] == '{"dwell_seconds": 5.0, "threshold_seconds": 5.0}'
+
+    def test_insert_event_nullable_zone_and_track(self):
+        p = self._params(
+            {
+                "op": "insert_event",
+                "event_uid": behavior_event_id("tailgating", "c", None, 2, 1.0),
+                "camera_uid": camera_id("c"),
+                "event_type": "tailgating",
+                "started_at": 1.0,
+            }
+        )
+        assert p[2] is None and p[3] is None  # track_id/zone_id nullable FKs
+
+    def test_end_event_params(self):
+        p = self._params(
+            {"op": "end_event", "track_uid": track_uuid("c", 1), "ended_at": 1006.0, "event_type": "loitering"}
+        )
+        assert p == (1006.0, track_uuid("c", 1), "loitering")
+
+    def test_behavior_event_id_is_deterministic_and_distinct(self):
+        a = behavior_event_id("loitering", "c", "z", 1, 1000.0)
+        b = behavior_event_id("loitering", "c", "z", 1, 1000.0)
+        assert a == b
+        assert a != behavior_event_id("loitering", "c", "z", 1, 1000.5)
+        assert a != event_id("c", "z", 1, 1000.0)  # never collides with entered_zone rows
 
     def test_unknown_op_raises(self):
         from perception.persistence import _params_for

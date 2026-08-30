@@ -7,10 +7,10 @@ refuses to boot with them enabled. Implemented so far:
 - object_detection    -> Stage 3 (pluggable detector backends)
 - tracking            -> Stage 4 (trackers package; time-scaled params)
 - zones               -> Stage 4 (zone membership from tracks)
+- behavior_loitering  -> Stage 6 (dwell-time debounce over zone membership)
 
 Remaining stages:
 
-- behavior_loitering-> Stage 6
 - semantic_search   -> Stage 7 (local CLIP embeddings, off hot path)
 - anpr              -> Stage 8
 """
@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import CAP, Frame, PerceptionModule
+from .behavior_loitering import BehaviorLoitering
 from .object_detection import ObjectDetection
 from .persistence import Persistence
 from .tracking import Tracking
@@ -105,6 +106,8 @@ class ANPRStub(_Stub):
 
 
 class BehaviorLoiteringStub(_Stub):
+    """Legacy alias kept for tests/tools that still reference the stub."""
+
     name = "behavior_loitering"
 
     def requires(self) -> list[str]:
@@ -141,7 +144,7 @@ REGISTRY: dict[str, type[PerceptionModule]] = {
     "zones": Zones,
     "face_recognition": FaceRecognitionStub,
     "anpr": ANPRStub,
-    "behavior_loitering": BehaviorLoiteringStub,
+    "behavior_loitering": BehaviorLoitering,
     "behavior_tailgating": BehaviorTailgatingStub,
     "semantic_search": SemanticSearchStub,
     "persistence": Persistence,

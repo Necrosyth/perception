@@ -1,7 +1,9 @@
 """Stage 4c: end-to-end object_detection -> tracking -> zones over Orchestrator.
 
-Brings the boot gate into focus: only the *implemented* chain survives resolution;
-stubs (behavior_loitering, semantic_search) still refuse to boot when enabled.
+Brings the boot gate into focus: the *implemented* chain survives resolution;
+the one remaining stub (semantic_search) still refuses to boot when enabled.
+Stage 6 proves a behavior module (behavior_loitering) survives resolution and
+its ``events`` reach the persistence sink only when enabled in config.
 """
 from __future__ import annotations
 
@@ -14,6 +16,7 @@ from perception.detectors.base import Detections
 from perception.modules import Frame, PerceptionModule
 from perception.modules.zones import Zones
 from perception.orchestrator import Orchestrator
+from perception.persistence import zone_id
 
 
 class FakeDetector(DetectorBackend):
@@ -128,17 +131,85 @@ def test_zones_receive_polygons_from_cameras_config():
     assert zones.smoothing == cfg.smoothing
 
 
-def test_boot_still_blocked_by_stubs_when_enabled():
-    with pytest.raises(ConfigError, match="behavior_loitering"):
-        Orchestrator(_config("object_detection", "behavior_loitering"), overrides={})
+def _const_detections_factory(frame):
+    """One person planted at feet (60, 90) inside dock_entry, forever."""
+    return [Detections(xyxy=[[40, 30, 80, 90]], confidence=[0.95], class_id=[0])]
+
+
+class _Recorder:
+    """Fake DatabaseWriter recording submitted ops (mirrors test_persistence)."""
+
+    def __init__(self, ops):
+        self.ops = ops
+
+    def start(self) -> None:
+        pass
+
+    def stop(self, flush_timeout: float = 10.0) -> None:
+        pass
+
+    def submit(self, op: dict) -> None:
+        self.ops.append(op)
+
+
+def test_boot_still_blocked_by_remaining_stub_when_enabled():
     with pytest.raises(ConfigError, match="semantic_search"):
         Orchestrator(_config("object_detection", "semantic_search"), overrides={})
 
 
-def test_loitering_stub_gate_message_lists_only_unimplemented():
-    cfg = _config("object_detection", "behavior_loitering")
+def test_stub_gate_message_lists_only_unimplemented():
+    cfg = _config("object_detection", "semantic_search")
     with pytest.raises(ConfigError) as exc:
         Orchestrator(cfg, overrides={})
-    # tracking/zones are implemented now and must NOT appear in the gate message
+    # tracking/zones/loitering are implemented now and must NOT appear in the gate
     assert "tracking" not in str(exc.value)
     assert "zones" not in str(exc.value)
+    assert "behavior_loitering" not in str(exc.value)
+
+
+def test_loitering_boots_full_chain(monkeypatch):
+    ops: list[dict] = []
+    monkeypatch.setattr("perception.modules.persistence.DatabaseWriter", lambda *a, **k: _Recorder(ops))
+    cfg = _config("object_detection", "behavior_loitering")
+    orch = Orchestrator(cfg, overrides={"object_detection": _DetectorModule(_const_detections_factory)})
+    names = [n.name for n in orch.schedule]
+    # detector + tracking + (auto) zones + behavior_loitering, sink last
+    assert names == ["object_detection", "tracking", "zones", "behavior_loitering"]
+
+
+def test_loitering_on_sinks_loitering_event_through_persistence(monkeypatch):
+    ops: list[dict] = []
+    monkeypatch.setattr("perception.modules.persistence.DatabaseWriter", lambda *a, **k: _Recorder(ops))
+    cfg = _config("object_detection", "behavior_loitering", "persistence")
+    cfg.capabilities["behavior_loitering"].params["dwell_threshold_seconds"] = 4.0
+    orch = Orchestrator(cfg, overrides={"object_detection": _DetectorModule(_const_detections_factory)})
+
+    pers = next(n.module for n in orch.schedule if n.name == "persistence")
+    assert "events" in pers.requires()
+    assert pers.params["_behavior_events"] == ["behavior_loitering"]
+
+    for frame_id in range(60):  # 0.1 s frames -> 6 s > 4 s threshold
+        orch.process_frame(Frame(source="loading_dock", frame_id=frame_id, timestamp=frame_id * 0.1))
+
+    inserts = [op for op in ops if op["op"] == "insert_event"]
+    assert len(inserts) == 1
+    assert inserts[0]["event_type"] == "loitering"
+    assert inserts[0]["zone_uid"] == zone_id("loading_dock", "dock_entry")
+    assert "end_event" not in [op["op"] for op in ops]
+
+
+def test_loitering_off_leaves_zero_trace_in_schedule_and_sink(monkeypatch):
+    ops: list[dict] = []
+    monkeypatch.setattr("perception.modules.persistence.DatabaseWriter", lambda *a, **k: _Recorder(ops))
+    cfg = _config("object_detection", "persistence")
+    orch = Orchestrator(cfg, overrides={"object_detection": _DetectorModule(_const_detections_factory)})
+
+    assert "behavior_loitering" not in [n.name for n in orch.schedule]
+    pers = next(n.module for n in orch.schedule if n.name == "persistence")
+    assert "events" not in pers.requires()
+    assert pers.params["_behavior_events"] == []
+
+    for frame_id in range(30):
+        orch.process_frame(Frame(source="loading_dock", frame_id=frame_id, timestamp=frame_id * 0.1))
+
+    assert not any(op["op"] == "insert_event" for op in ops)

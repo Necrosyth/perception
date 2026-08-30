@@ -23,6 +23,7 @@ from typing import Any
 
 from ..persistence import (
     DatabaseWriter,
+    behavior_event_id,
     camera_id,
     event_id,
     track_uuid,
@@ -85,9 +86,15 @@ class Persistence(PerceptionModule):
         self._in_zone: dict[tuple[str, int], dict[str, float]] = {}
         # (camera, gid) -> last seen epoch (track finalization pruning)
         self._last_seen: dict[tuple[str, int], float] = {}
+        # True when the orchestrator resolved >= 1 enabled behavior module that
+        # produces "events" (e.g. behavior_loitering); sink only then.
+        self._sink_events = False
 
     def requires(self) -> list[str]:
-        return [CAP["detections"].key, CAP["tracks"].key, CAP["zone_membership"].key]
+        keys = [CAP["detections"].key, CAP["tracks"].key, CAP["zone_membership"].key]
+        if self._sink_events:
+            keys.append(CAP["events"].key)
+        return keys
 
     def produces(self) -> list[str]:
         return []
@@ -108,6 +115,10 @@ class Persistence(PerceptionModule):
         self._db = db
         # cameras/zones injected by the orchestrator under _camera_defs
         self._camera_defs = list(self.params.get("_camera_defs", []))
+        # enabled behavior modules producing "events" (orchestrator injects).
+        # Keeping this off when behavior.* is disabled guarantees the sink never
+        # auto-enables a behavior module the operator toggled off.
+        self._sink_events = bool(self.params.get("_behavior_events"))
 
     def start(self) -> None:
         self._writer = DatabaseWriter(make_connect(self._db))
@@ -214,6 +225,10 @@ class Persistence(PerceptionModule):
                 writer.submit({"op": "finalize_track", "track_uid": track_uuid(*key), "ended_at": _dt(text_now())})
                 del self._last_seen[key]
                 self._in_zone.pop(key, None)
+
+        # behavior-module events (loitering...) -> events table, only when the
+        # orchestrator resolved an enabled behavior producer
+        self._sink_behavior_events(upstream.get(CAP["events"].key, []))
         return {}
 
     def _apply_transitions(
@@ -246,6 +261,43 @@ class Persistence(PerceptionModule):
             )
         if entered_zones or left_zones:
             self._in_zone[key] = dict(zones)
+
+    def _sink_behavior_events(self, payloads: list[Any]) -> None:
+        """Turn ``events`` capability rows into insert_event/end_event DB ops."""
+        writer = self._writer
+        if not self._sink_events or writer is None:
+            return
+        for payload in payloads:
+            for row in _behavior_rows(payload):
+                source = row.get("camera")
+                camera_uid = self._camera_uid.get(source) if source else None
+                if camera_uid is None:
+                    continue
+                if row.get("ended_at") is None:
+                    writer.submit(
+                        {
+                            "op": "insert_event",
+                            "event_uid": behavior_event_id(
+                                row["event_type"], source, row.get("zone"), row["track_id"], row["started_at"]
+                            ),
+                            "camera_uid": camera_uid,
+                            "track_uid": track_uuid(source, row["track_id"]),
+                            "zone_uid": zone_id(source, row["zone"]) if row.get("zone") else None,
+                            "event_type": row["event_type"],
+                            "started_at": _dt(row["started_at"]),
+                            "severity": row.get("severity", "detection"),
+                            "data": row.get("data", {}),
+                        }
+                    )
+                else:
+                    writer.submit(
+                        {
+                            "op": "end_event",
+                            "track_uid": track_uuid(source, row["track_id"]),
+                            "ended_at": _dt(row["ended_at"]),
+                            "event_type": row["event_type"],
+                        }
+                    )
 
     def stop(self) -> None:
         if self._writer is not None:
@@ -283,6 +335,22 @@ def _memberships(values: list[Any]) -> dict[tuple[str, int], list[str]]:
             for (src, gid), names in mem.items():
                 out[(src, int(gid))] = sorted(names)
     return out
+
+
+def _behavior_rows(value: Any) -> list[dict[str, Any]]:
+    """Flatten one ``events`` capability payload into row dicts.
+
+    A producer module returns ``{"events": [row, ...]}``; rows carry the
+    contract from behavior_loitering (`camera`, `track_id`, `zone`,
+    `event_type`, `started_at`, `ended_at`, `severity`, `data`).
+    """
+    if isinstance(value, dict):
+        rows = value.get("events") or value.get(CAP["events"].key) or []
+    else:
+        rows = value
+    if not isinstance(rows, (list, tuple)):
+        return []
+    return [row for row in rows if isinstance(row, dict) and row.get("event_type")]
 
 
 def _class_names(values: list[Any]) -> dict[int, str]:

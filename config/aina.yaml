@@ -40,7 +40,7 @@ capabilities:
 
   behavior:
     loitering:
-      enabled: false          # Stage 6 — keep off until behavior_loitering lands
+      enabled: false          # Stage 6 shipped — flip to true to arm (events land in Postgres)
       dwell_threshold_seconds: 600
     tailgating:
       enabled: false          # deferred — see docs/BACKLOG.md
