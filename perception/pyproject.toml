@@ -1,0 +1,31 @@
+[project]
+name = "aina-perception"
+version = "0.1.0-alpha"
+description = "Surveillance Intelligence Lab perception orchestrator (pluggable detectors)"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+detection = [
+    "supervision>=0.24",
+    "ultralytics>=8.3",
+    "opencv-python-headless",
+]
+db = [
+    "psycopg[binary]>=3.2",
+]
+# Optional plug-play detector: add rfdetr here and `--extra rfdetr` when wiring
+# it (not locked yet — kept out of the default lock).
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["perception/tests"]

@@ -1,0 +1,28 @@
+{
+  "id": "deployment/gpu-acceleration",
+  "title": "GPU acceleration",
+  "description": "The perception container does all inference on the NVIDIA GPU. Model export path:",
+  "source": "@site/docs/deployment/gpu-acceleration.md",
+  "sourceDirName": "deployment",
+  "slug": "/deployment/gpu-acceleration",
+  "permalink": "/docs/deployment/gpu-acceleration",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/deployment/gpu-acceleration.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2,
+    "title": "GPU acceleration"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Docker deployment",
+    "permalink": "/docs/deployment/docker"
+  },
+  "next": {
+    "title": "Architecture",
+    "permalink": "/docs/development/architecture"
+  }
+}

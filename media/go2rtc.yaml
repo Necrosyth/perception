@@ -1,0 +1,27 @@
+# go2rtc — Surveillance Intelligence Lab media restream layer.
+# Cameras plug in here; both the API (recording) and the perception container
+# consume the SAME restream, so camera streams are opened exactly once per source.
+# Sources are declared in ../config/aina.yaml under `cameras:`; the media service
+# exposes each one as a restream of the same name (rtsp://media:8554/<name>,
+# http://…/api/stream?src=<name> for the dashboard <video> tile).
+
+api:
+  listen: "0.0.0.0:1984"
+
+log:
+  level: info
+
+streams:
+  # Demo camera: loops the packaged H.264 clip so the dashboard shows live
+  # video immediately. Point `loading_dock.url` at your real RTSP feed for
+  # 24/7 operation (the perception restream target stays rtsp://…/loading_dock).
+  loading_dock:
+    # Loop the packaged H.264 clip via ffmpeg so the dashboard shows live
+    # video immediately. Point this at your real RTSP feed for 24/7 operation
+    # (the perception restream target stays rtsp://…/loading_dock).
+    url: ffmpeg:/videos/demo_short_h264.mp4#copy
+
+# Real feeds plug in here, e.g.:
+#   dock_bay:
+#     url: rtsp://user:pass@192.168.1.50:554/stream1
+#     on_demand: false

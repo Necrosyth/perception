@@ -1,0 +1,178 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/docs/",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/docs/",
+          "mainDocId": "intro/index",
+          "docs": [
+            {
+              "id": "configuration/capabilities",
+              "path": "/docs/configuration/capabilities",
+              "sidebar": "docs"
+            },
+            {
+              "id": "configuration/detection",
+              "path": "/docs/configuration/detection",
+              "sidebar": "docs"
+            },
+            {
+              "id": "configuration/environment",
+              "path": "/docs/configuration/environment",
+              "sidebar": "docs"
+            },
+            {
+              "id": "configuration/index",
+              "path": "/docs/configuration/",
+              "sidebar": "docs"
+            },
+            {
+              "id": "configuration/persistence",
+              "path": "/docs/configuration/persistence",
+              "sidebar": "docs"
+            },
+            {
+              "id": "configuration/smoothing",
+              "path": "/docs/configuration/smoothing",
+              "sidebar": "docs"
+            },
+            {
+              "id": "configuration/tracking",
+              "path": "/docs/configuration/tracking",
+              "sidebar": "docs"
+            },
+            {
+              "id": "configuration/zones",
+              "path": "/docs/configuration/zones",
+              "sidebar": "docs"
+            },
+            {
+              "id": "deployment/docker",
+              "path": "/docs/deployment/docker",
+              "sidebar": "docs"
+            },
+            {
+              "id": "deployment/gpu-acceleration",
+              "path": "/docs/deployment/gpu-acceleration",
+              "sidebar": "docs"
+            },
+            {
+              "id": "development/architecture",
+              "path": "/docs/development/architecture",
+              "sidebar": "docs"
+            },
+            {
+              "id": "development/modules",
+              "path": "/docs/development/modules",
+              "sidebar": "docs"
+            },
+            {
+              "id": "development/roadmap",
+              "path": "/docs/development/roadmap",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/camera-setup",
+              "path": "/docs/intro/camera-setup",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/glossary",
+              "path": "/docs/intro/glossary",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/hardware",
+              "path": "/docs/intro/hardware",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/index",
+              "path": "/docs/intro/",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/installation",
+              "path": "/docs/intro/installation",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/network",
+              "path": "/docs/intro/network",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/planning",
+              "path": "/docs/intro/planning",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/updating",
+              "path": "/docs/intro/updating",
+              "sidebar": "docs"
+            },
+            {
+              "id": "intro/video-pipeline",
+              "path": "/docs/intro/video-pipeline",
+              "sidebar": "docs"
+            },
+            {
+              "id": "platform/api",
+              "path": "/docs/platform/api",
+              "sidebar": "docs"
+            },
+            {
+              "id": "platform/data-layer",
+              "path": "/docs/platform/data-layer",
+              "sidebar": "docs"
+            },
+            {
+              "id": "platform/media",
+              "path": "/docs/platform/media",
+              "sidebar": "docs"
+            },
+            {
+              "id": "usage/explore",
+              "path": "/docs/usage/explore",
+              "sidebar": "docs"
+            },
+            {
+              "id": "usage/live",
+              "path": "/docs/usage/live",
+              "sidebar": "docs"
+            },
+            {
+              "id": "usage/review",
+              "path": "/docs/usage/review",
+              "sidebar": "docs"
+            },
+            {
+              "id": "usage/system",
+              "path": "/docs/usage/system",
+              "sidebar": "docs"
+            },
+            {
+              "id": "usage/zone-editor",
+              "path": "/docs/usage/zone-editor",
+              "sidebar": "docs"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "docs": {
+              "link": {
+                "path": "/docs/intro/",
+                "label": "intro/index"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "intro/planning",
+  "title": "Deployment planning",
+  "description": "A little planning before you docker compose up pays off. This page covers the decisions that are",
+  "source": "@site/docs/intro/planning.md",
+  "sourceDirName": "intro",
+  "slug": "/intro/planning",
+  "permalink": "/docs/intro/planning",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/intro/planning.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3,
+    "title": "Deployment planning"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Hardware requirements",
+    "permalink": "/docs/intro/hardware"
+  },
+  "next": {
+    "title": "Installation",
+    "permalink": "/docs/intro/installation"
+  }
+}

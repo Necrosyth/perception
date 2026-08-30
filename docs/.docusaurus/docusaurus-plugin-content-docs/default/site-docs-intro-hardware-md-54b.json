@@ -1,0 +1,28 @@
+{
+  "id": "intro/hardware",
+  "title": "Hardware requirements",
+  "description": "Surveillance Intelligence Lab targets NVIDIA GPUs. The application code is identical across targets — the only",
+  "source": "@site/docs/intro/hardware.md",
+  "sourceDirName": "intro",
+  "slug": "/intro/hardware",
+  "permalink": "/docs/intro/hardware",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/intro/hardware.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2,
+    "title": "Hardware requirements"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Introduction",
+    "permalink": "/docs/intro/"
+  },
+  "next": {
+    "title": "Deployment planning",
+    "permalink": "/docs/intro/planning"
+  }
+}

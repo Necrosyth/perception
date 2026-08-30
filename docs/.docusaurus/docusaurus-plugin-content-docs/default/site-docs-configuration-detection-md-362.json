@@ -1,0 +1,28 @@
+{
+  "id": "configuration/detection",
+  "title": "Detection",
+  "description": "Detector layer (framework/model)",
+  "source": "@site/docs/configuration/detection.md",
+  "sourceDirName": "configuration",
+  "slug": "/configuration/detection",
+  "permalink": "/docs/configuration/detection",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/configuration/detection.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "sidebar_position": 2,
+    "title": "Detection"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Configuration",
+    "permalink": "/docs/configuration/"
+  },
+  "next": {
+    "title": "Tracking",
+    "permalink": "/docs/configuration/tracking"
+  }
+}

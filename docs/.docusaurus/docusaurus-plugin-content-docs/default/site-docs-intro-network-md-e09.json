@@ -1,0 +1,28 @@
+{
+  "id": "intro/network",
+  "title": "Network requirements",
+  "description": "Ports (host-facing)",
+  "source": "@site/docs/intro/network.md",
+  "sourceDirName": "intro",
+  "slug": "/intro/network",
+  "permalink": "/docs/intro/network",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/intro/network.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 8,
+  "frontMatter": {
+    "sidebar_position": 8,
+    "title": "Network requirements"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Video pipeline",
+    "permalink": "/docs/intro/video-pipeline"
+  },
+  "next": {
+    "title": "Glossary",
+    "permalink": "/docs/intro/glossary"
+  }
+}

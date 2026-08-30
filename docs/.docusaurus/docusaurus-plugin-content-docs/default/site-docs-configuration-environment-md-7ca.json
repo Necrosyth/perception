@@ -1,0 +1,28 @@
+{
+  "id": "configuration/environment",
+  "title": "Environment & Docker",
+  "description": "The Compose stack is parameterized by .env (copy of .env.example).",
+  "source": "@site/docs/configuration/environment.md",
+  "sourceDirName": "configuration",
+  "slug": "/configuration/environment",
+  "permalink": "/docs/configuration/environment",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/configuration/environment.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 8,
+  "frontMatter": {
+    "sidebar_position": 8,
+    "title": "Environment & Docker"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Capabilities (opt-in)",
+    "permalink": "/docs/configuration/capabilities"
+  },
+  "next": {
+    "title": "Data layer",
+    "permalink": "/docs/platform/data-layer"
+  }
+}

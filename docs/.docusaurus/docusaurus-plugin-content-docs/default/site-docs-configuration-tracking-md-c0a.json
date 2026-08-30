@@ -1,0 +1,28 @@
+{
+  "id": "configuration/tracking",
+  "title": "Tracking",
+  "description": "Tracking is the strictest part of the platform: at 10–12 FPS naive defaults fall apart, so all",
+  "source": "@site/docs/configuration/tracking.md",
+  "sourceDirName": "configuration",
+  "slug": "/configuration/tracking",
+  "permalink": "/docs/configuration/tracking",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/configuration/tracking.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3,
+    "title": "Tracking"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Detection",
+    "permalink": "/docs/configuration/detection"
+  },
+  "next": {
+    "title": "Zones",
+    "permalink": "/docs/configuration/zones"
+  }
+}

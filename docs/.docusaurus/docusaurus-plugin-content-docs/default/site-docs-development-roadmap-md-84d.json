@@ -1,0 +1,24 @@
+{
+  "id": "development/roadmap",
+  "title": "Roadmap",
+  "description": "Everything below is mapped to the staged build plan (AINAAGENTBUILD_PROMPT.md). Status is",
+  "source": "@site/docs/development/roadmap.md",
+  "sourceDirName": "development",
+  "slug": "/development/roadmap",
+  "permalink": "/docs/development/roadmap",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/development/roadmap.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "sidebar_position": 3,
+    "title": "Roadmap"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Writing modules",
+    "permalink": "/docs/development/modules"
+  }
+}

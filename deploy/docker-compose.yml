@@ -1,0 +1,103 @@
+name: aina-sentinel
+
+services:
+  media:
+    image: alexxit/go2rtc:latest
+    restart: unless-stopped
+    ports:
+      - "${GO2RTC_PORT:-1984}:1984"
+    volumes:
+      - ./media/go2rtc.yaml:/config/go2rtc.yaml:ro
+      - ./media/videos:/videos:ro
+    logging:
+      options:
+        max-size: "10m"
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aina_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aina_sentinel}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aina} -d ${POSTGRES_DB:-aina_sentinel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      DEPLOYMENT_TARGET: ${DEPLOYMENT_TARGET:-edge}
+      POSTGRES_USER: ${POSTGRES_USER:-aina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aina_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aina_sentinel}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    ports:
+      - "${API_PORT:-5000}:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.dashboard
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    depends_on:
+      - api
+      - media
+
+  docs:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.docs
+    restart: unless-stopped
+    ports:
+      - "${DOCS_PORT:-3001}:80"
+    depends_on:
+      - api
+
+  perception:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.perception
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      DEPLOYMENT_TARGET: ${DEPLOYMENT_TARGET:-edge}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PERCEPTION_GPU_INDEX: ${PERCEPTION_GPU_INDEX:-0}
+      ENGINE_CACHE: ${ENGINE_CACHE:-/.engine_cache}
+      AINA_MODELS_DIR: /etc/aina/models
+      AINA_INGEST: rtsp
+      GO2RTC_HOST: media
+      GO2RTC_RTSP_PORT: "8554"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-aina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aina_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aina_sentinel}
+    volumes:
+      - engine_cache:/.engine_cache
+      - ../../surveillance-backend/models:/etc/aina/models:ro
+    depends_on:
+      - media
+      - api
+      - postgres
+
+volumes:
+  pgdata:
+  engine_cache:

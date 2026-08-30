@@ -1,0 +1,28 @@
+{
+  "id": "development/architecture",
+  "title": "Architecture",
+  "description": "Two non-negotiable constraints shape the whole codebase; both are enforced structurally, not by",
+  "source": "@site/docs/development/architecture.md",
+  "sourceDirName": "development",
+  "slug": "/development/architecture",
+  "permalink": "/docs/development/architecture",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/development/architecture.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1,
+    "title": "Architecture"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "GPU acceleration",
+    "permalink": "/docs/deployment/gpu-acceleration"
+  },
+  "next": {
+    "title": "Writing modules",
+    "permalink": "/docs/development/modules"
+  }
+}

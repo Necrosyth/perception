@@ -1,0 +1,28 @@
+{
+  "id": "deployment/docker",
+  "title": "Docker deployment",
+  "description": "The primary (and currently only) deployment path is Docker Compose. The compose file doubles as",
+  "source": "@site/docs/deployment/docker.md",
+  "sourceDirName": "deployment",
+  "slug": "/deployment/docker",
+  "permalink": "/docs/deployment/docker",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/deployment/docker.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1,
+    "title": "Docker deployment"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Media service",
+    "permalink": "/docs/platform/media"
+  },
+  "next": {
+    "title": "GPU acceleration",
+    "permalink": "/docs/deployment/gpu-acceleration"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "usage/live",
+  "title": "Live view",
+  "description": "The Live page is the operator's main screen: a grid of every enabled camera streaming in",
+  "source": "@site/docs/usage/live.md",
+  "sourceDirName": "usage",
+  "slug": "/usage/live",
+  "permalink": "/docs/usage/live",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/usage/live.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1,
+    "title": "Live view"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Glossary",
+    "permalink": "/docs/intro/glossary"
+  },
+  "next": {
+    "title": "Review (events)",
+    "permalink": "/docs/usage/review"
+  }
+}

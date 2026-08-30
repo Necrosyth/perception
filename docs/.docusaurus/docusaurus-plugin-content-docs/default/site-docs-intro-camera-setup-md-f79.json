@@ -1,0 +1,28 @@
+{
+  "id": "intro/camera-setup",
+  "title": "Camera setup",
+  "description": "Every camera is configured in two places, and the name must match between them:",
+  "source": "@site/docs/intro/camera-setup.md",
+  "sourceDirName": "intro",
+  "slug": "/intro/camera-setup",
+  "permalink": "/docs/intro/camera-setup",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/intro/camera-setup.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 6,
+  "frontMatter": {
+    "sidebar_position": 6,
+    "title": "Camera setup"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Updating",
+    "permalink": "/docs/intro/updating"
+  },
+  "next": {
+    "title": "Video pipeline",
+    "permalink": "/docs/intro/video-pipeline"
+  }
+}

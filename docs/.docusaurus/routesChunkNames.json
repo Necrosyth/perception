@@ -1,0 +1,142 @@
+{
+  "/docs/-6fa": {
+    "__comp": "c4f5d8e4",
+    "__context": {
+      "plugin": "a7456010"
+    },
+    "config": "5e9f5e1a"
+  },
+  "/docs/-9bc": {
+    "__comp": "5e95c892",
+    "__context": {
+      "plugin": "aba21aa0"
+    }
+  },
+  "/docs/-efe": {
+    "__comp": "a7bd4aaa",
+    "__props": "11b43341"
+  },
+  "/docs/-6e6": {
+    "__comp": "a94703ab"
+  },
+  "/docs/configuration/-3a5": {
+    "__comp": "17896441",
+    "content": "f6d78023"
+  },
+  "/docs/configuration/capabilities-1aa": {
+    "__comp": "17896441",
+    "content": "6604af99"
+  },
+  "/docs/configuration/detection-4f6": {
+    "__comp": "17896441",
+    "content": "362b05a4"
+  },
+  "/docs/configuration/environment-664": {
+    "__comp": "17896441",
+    "content": "7cacc613"
+  },
+  "/docs/configuration/persistence-cef": {
+    "__comp": "17896441",
+    "content": "5528abae"
+  },
+  "/docs/configuration/smoothing-838": {
+    "__comp": "17896441",
+    "content": "a9452f63"
+  },
+  "/docs/configuration/tracking-dca": {
+    "__comp": "17896441",
+    "content": "c0a850c1"
+  },
+  "/docs/configuration/zones-723": {
+    "__comp": "17896441",
+    "content": "21ebef7a"
+  },
+  "/docs/deployment/docker-000": {
+    "__comp": "17896441",
+    "content": "ff8b1e34"
+  },
+  "/docs/deployment/gpu-acceleration-f3b": {
+    "__comp": "17896441",
+    "content": "05c32c1c"
+  },
+  "/docs/development/architecture-a70": {
+    "__comp": "17896441",
+    "content": "769e68cb"
+  },
+  "/docs/development/modules-d2e": {
+    "__comp": "17896441",
+    "content": "7857da70"
+  },
+  "/docs/development/roadmap-12c": {
+    "__comp": "17896441",
+    "content": "84dc1f24"
+  },
+  "/docs/intro/-4e1": {
+    "__comp": "17896441",
+    "content": "7a4fffdf"
+  },
+  "/docs/intro/camera-setup-dc0": {
+    "__comp": "17896441",
+    "content": "f79b9a9d"
+  },
+  "/docs/intro/glossary-d87": {
+    "__comp": "17896441",
+    "content": "b416ac4f"
+  },
+  "/docs/intro/hardware-927": {
+    "__comp": "17896441",
+    "content": "54bdd942"
+  },
+  "/docs/intro/installation-ae1": {
+    "__comp": "17896441",
+    "content": "39ddb24d"
+  },
+  "/docs/intro/network-eeb": {
+    "__comp": "17896441",
+    "content": "e09e755e"
+  },
+  "/docs/intro/planning-c77": {
+    "__comp": "17896441",
+    "content": "bd96f0f6"
+  },
+  "/docs/intro/updating-b81": {
+    "__comp": "17896441",
+    "content": "31dffe9b"
+  },
+  "/docs/intro/video-pipeline-04e": {
+    "__comp": "17896441",
+    "content": "237c3d21"
+  },
+  "/docs/platform/api-38b": {
+    "__comp": "17896441",
+    "content": "fc925e67"
+  },
+  "/docs/platform/data-layer-47a": {
+    "__comp": "17896441",
+    "content": "44b98bf4"
+  },
+  "/docs/platform/media-92f": {
+    "__comp": "17896441",
+    "content": "1b8c3e9a"
+  },
+  "/docs/usage/explore-f82": {
+    "__comp": "17896441",
+    "content": "21b94cdd"
+  },
+  "/docs/usage/live-8a3": {
+    "__comp": "17896441",
+    "content": "704daa74"
+  },
+  "/docs/usage/review-031": {
+    "__comp": "17896441",
+    "content": "5d8c849b"
+  },
+  "/docs/usage/system-00f": {
+    "__comp": "17896441",
+    "content": "067c334b"
+  },
+  "/docs/usage/zone-editor-604": {
+    "__comp": "17896441",
+    "content": "2c75ab50"
+  }
+}

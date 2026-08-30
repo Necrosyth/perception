@@ -1,0 +1,28 @@
+{
+  "id": "configuration/smoothing",
+  "title": "Smoothing",
+  "description": "At 10–12 FPS, naive settings visibly shake and drop tracks. The platform implements all four",
+  "source": "@site/docs/configuration/smoothing.md",
+  "sourceDirName": "configuration",
+  "slug": "/configuration/smoothing",
+  "permalink": "/docs/configuration/smoothing",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/configuration/smoothing.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 5,
+  "frontMatter": {
+    "sidebar_position": 5,
+    "title": "Smoothing"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Zones",
+    "permalink": "/docs/configuration/zones"
+  },
+  "next": {
+    "title": "Persistence",
+    "permalink": "/docs/configuration/persistence"
+  }
+}

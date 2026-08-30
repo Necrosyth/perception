@@ -1,0 +1,28 @@
+{
+  "id": "configuration/index",
+  "title": "Configuration",
+  "description": "Surveillance Intelligence Lab is configured by editing two YAML files — this is the contract an operator edits,",
+  "source": "@site/docs/configuration/index.md",
+  "sourceDirName": "configuration",
+  "slug": "/configuration/",
+  "permalink": "/docs/configuration/",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/hypotenuse-analytics/hypotenuse/docs/configuration/index.md",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "sidebar_position": 1,
+    "title": "Configuration"
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "System & health",
+    "permalink": "/docs/usage/system"
+  },
+  "next": {
+    "title": "Detection",
+    "permalink": "/docs/configuration/detection"
+  }
+}

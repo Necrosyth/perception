@@ -1,0 +1,66 @@
+# Surveillance Intelligence Lab — deployment config
+# This YAML is what an operator edits. Extend it, don't restructure it.
+deployment:
+  target: edge          # edge (Jetson) | aws (g4dn/g5) — selects base image + cached engine only
+  gpu: true
+
+cameras:
+  - name: loading_dock
+    source: rtsp://user:pass@192.168.1.50:554/stream1   # go2rtc restreams this once
+    zones:
+      - name: dock_entry
+        polygon: [[0,0],[100,0],[100,100],[0,100]]
+
+capabilities:
+  object_detection:
+    enabled: true
+    framework: ultralytics   # plug-play detector layer: ultralytics | rfdetr | (add your own in perception/detectors/)
+    model: yolo26s           # ultralytics id (yolo26s, yolo13, yolo11n, yolov8s, ...) OR local weights file
+                             # e.g. model: yoloe-26s-seg-pf.pt (resolved via AINA_MODELS_DIR /config/aina.yaml sibling)
+                            # for rfdetr use model: rfdetr-base or rfdetr-plus
+    image_size: 640
+    confidence: 0.25
+    device_head: one_to_one   # one_to_one (NMS-free when the head allows, default) | one_to_many (raw head proposals)
+
+  tracking:
+    enabled: true
+    backend: bytetrack        # from the `trackers` package (Apache-2.0), not sv.ByteTrack
+    track_buffer_seconds: 1.0 # time-based; converted to frames via measured FPS at runtime
+    iou_threshold: 0.3
+    track_thresh: 0.5         # ByteTrack low-score second-chance floor (>= 0.1 matched in stage 2)
+
+  zones:
+    enabled: true             # membership = cameras[].zones polygons; powers events + overlays
+
+  face_recognition:
+    enabled: false
+
+  anpr:
+    enabled: false
+
+  behavior:
+    loitering:
+      enabled: false          # Stage 6 — keep off until behavior_loitering lands
+      dwell_threshold_seconds: 600
+    tailgating:
+      enabled: false          # deferred — see docs/BACKLOG.md
+
+  semantic_search:
+    enabled: false            # Stage 7 — off until local-CLIP embeddings land
+    embedding_model: local_clip   # must stay local — no cloud embedding APIs
+
+  persistence:
+    enabled: true             # Stage 5 — sink detections/tracks/zone events to Postgres
+    detection_sampling: 5     # persist 1 in N detection rows (24/7 feeds -> keep the table lean)
+    finalize_timeout_s: 5.0   # finish a track's lifecycle after it has been unseen this long
+    # database: {host: postgres, port: 5432, user: aina, password: ..., dbname: aina_sentinel}
+    # defaults (and docker-compose) read the standard POSTGRES_* env vars instead
+
+# Smoothing/jitter stack — each toggleable independently for debugging (Stage 4)
+smoothing:
+  detection_smoother: true      # sv.DetectionSmoother first-pass on raw detections
+  one_euro_filter: true         # per-track render smoothing
+  render_interpolation: true    # Kalman predict between real detections
+  min_cutoff: 1.0
+  beta: 0.007
+  d_cutoff: 1.0

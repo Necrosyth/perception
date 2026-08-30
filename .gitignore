@@ -1,0 +1,43 @@
+# Hypotenuse Analytics — Surveillance Intelligence Lab
+# "Predict. Protect. Verify."
+
+# --- Python / perception ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# --- Node / dashboard ---
+node_modules/
+dist/
+dashboard/dist/
+docs/build/
+*.tsbuildinfo
+
+# --- ML artifacts / streaming temp ---
+*.engine
+*.onnx
+*.pt
+*.bin.zst
+.engine_cache/
+**/thumbnail/
+**/clips/
+**/recordings/
+
+# --- Config / secrets ---
+.env
+*.pem
+*.key
+
+# --- data volumes (compose) ---
+.pgdata/
+.media/
+
+# --- misc ---
+.DS_Store
+*.log
+output/
