@@ -16,6 +16,7 @@ node_modules/
 dist/
 dashboard/dist/
 docs/build/
+docs/.docusaurus/
 *.tsbuildinfo
 
 # --- ML artifacts / streaming temp ---
