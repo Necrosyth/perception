@@ -144,6 +144,11 @@ class Orchestrator:
                 params["_behavior_events"] = [
                     n for n in self.enabled if "events" in self._contracts[n][1]
                 ]
+                # Same gating for semantic embeddings (semantic_search module):
+                # no embeddings producer => persistence must not require it.
+                params["_embedding_sinks"] = [
+                    n for n in self.enabled if "embeddings" in self._contracts[n][1]
+                ]
             module.configure(params)
             module.smoothing = dict(config.smoothing)
             self._modules[name] = module
@@ -328,11 +333,13 @@ def _run_ingest_loop(orchestrator: Orchestrator, config: AinaConfig) -> int:
         logger.error("pump build failed: %s", exc)
         return 1
 
+    results: dict = {}
     try:
         for frame in _round_robin(pumps):
             try:
                 results = orchestrator.process_frame(frame)
             except Exception as exc:
+                results = results or {}
                 logger.exception("frame %s failed: %s", frame.frame_id, exc)
                 if os.environ.get("AINA_FAIL_FAST") == "1":
                     raise

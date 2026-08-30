@@ -8,10 +8,10 @@ refuses to boot with them enabled. Implemented so far:
 - tracking            -> Stage 4 (trackers package; time-scaled params)
 - zones               -> Stage 4 (zone membership from tracks)
 - behavior_loitering  -> Stage 6 (dwell-time debounce over zone membership)
+- semantic_search     -> Stage 7 (local CLIP embeddings, off the hot path)
 
 Remaining stages:
 
-- semantic_search   -> Stage 7 (local CLIP embeddings, off hot path)
 - anpr              -> Stage 8
 """
 from __future__ import annotations
@@ -20,6 +20,7 @@ from typing import Any
 
 from .base import CAP, Frame, PerceptionModule
 from .behavior_loitering import BehaviorLoitering
+from .embeddings import SemanticSearch
 from .object_detection import ObjectDetection
 from .persistence import Persistence
 from .tracking import Tracking
@@ -128,10 +129,12 @@ class BehaviorTailgatingStub(_Stub):
 
 
 class SemanticSearchStub(_Stub):
+    """Legacy alias kept for tests/tools that still reference the stub."""
+
     name = "semantic_search"
 
     def requires(self) -> list[str]:
-        return [CAP["tracks"].key]
+        return [CAP["detections"].key, CAP["tracks"].key]
 
     def produces(self) -> list[str]:
         return [CAP["embeddings"].key]
@@ -146,7 +149,7 @@ REGISTRY: dict[str, type[PerceptionModule]] = {
     "anpr": ANPRStub,
     "behavior_loitering": BehaviorLoitering,
     "behavior_tailgating": BehaviorTailgatingStub,
-    "semantic_search": SemanticSearchStub,
+    "semantic_search": SemanticSearch,
     "persistence": Persistence,
 }
 

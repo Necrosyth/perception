@@ -17,6 +17,9 @@ detection = [
 db = [
     "psycopg[binary]>=3.2",
 ]
+semantic = [
+    "open_clip_torch>=2.24",
+]
 # Optional plug-play detector: add rfdetr here and `--extra rfdetr` when wiring
 # it (not locked yet — kept out of the default lock).
 

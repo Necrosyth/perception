@@ -1,11 +1,15 @@
 """Stage 4c: end-to-end object_detection -> tracking -> zones over Orchestrator.
 
 Brings the boot gate into focus: the *implemented* chain survives resolution;
-the one remaining stub (semantic_search) still refuses to boot when enabled.
+the one remaining stub (anpr) still refuses to boot when enabled.
 Stage 6 proves a behavior module (behavior_loitering) survives resolution and
 its ``events`` reach the persistence sink only when enabled in config.
+Stage 7 proves semantic_search survives resolution and its ``embeddings`` reach
+the persistence sink — same gating rule — with the encoder swapped for a fake.
 """
 from __future__ import annotations
+
+import time
 
 import numpy as np
 import pytest
@@ -16,7 +20,7 @@ from perception.detectors.base import Detections
 from perception.modules import Frame, PerceptionModule
 from perception.modules.zones import Zones
 from perception.orchestrator import Orchestrator
-from perception.persistence import zone_id
+from perception.persistence import track_uuid, zone_id
 
 
 class FakeDetector(DetectorBackend):
@@ -153,18 +157,19 @@ class _Recorder:
 
 
 def test_boot_still_blocked_by_remaining_stub_when_enabled():
-    with pytest.raises(ConfigError, match="semantic_search"):
-        Orchestrator(_config("object_detection", "semantic_search"), overrides={})
+    with pytest.raises(ConfigError, match="anpr"):
+        Orchestrator(_config("object_detection", "anpr"), overrides={})
 
 
 def test_stub_gate_message_lists_only_unimplemented():
-    cfg = _config("object_detection", "semantic_search")
+    cfg = _config("object_detection", "anpr")
     with pytest.raises(ConfigError) as exc:
         Orchestrator(cfg, overrides={})
-    # tracking/zones/loitering are implemented now and must NOT appear in the gate
+    # tracking/zones/loitering/semantic_search are implemented now and must NOT appear
     assert "tracking" not in str(exc.value)
     assert "zones" not in str(exc.value)
     assert "behavior_loitering" not in str(exc.value)
+    assert "semantic_search" not in str(exc.value)
 
 
 def test_loitering_boots_full_chain(monkeypatch):
@@ -213,3 +218,95 @@ def test_loitering_off_leaves_zero_trace_in_schedule_and_sink(monkeypatch):
         orch.process_frame(Frame(source="loading_dock", frame_id=frame_id, timestamp=frame_id * 0.1))
 
     assert not any(op["op"] == "insert_event" for op in ops)
+
+
+# --------------------------------------------------------------------------- #
+# Stage 7 — semantic_search boots the full chain and sinks embeddings
+# --------------------------------------------------------------------------- #
+class _FakeEmbedder:
+    name = "fake_clip"
+    dim = 1024
+    available = True
+
+    def encode(self, patches):
+        return np.full((len(patches), self.dim), 0.25, dtype=np.float32)
+
+    def encode_text(self, text):
+        return np.full(self.dim, 0.5, dtype=np.float32)
+
+
+def _real_image_frame(frame_id, ts):
+    return Frame(
+        source="loading_dock",
+        frame_id=frame_id,
+        timestamp=ts,
+        image=np.full((120, 120, 3), 128, dtype=np.uint8),  # plain grey frame, real pixels
+    )
+
+
+def test_semantic_search_boots_full_chain(monkeypatch):
+    ops: list[dict] = []
+    monkeypatch.setattr("perception.modules.persistence.DatabaseWriter", lambda *a, **k: _Recorder(ops))
+    # default embedding_model local_clip on a host without open_clip -> disabled,
+    # so the chain must still boot with semantic_search running pass-through
+    cfg = _config(
+        "object_detection",
+        "semantic_search",
+        extra_caps={"semantic_search": {"enabled": True, "rpc_port": 5061}},
+    )
+    orch = Orchestrator(cfg, overrides={"object_detection": _DetectorModule(_const_detections_factory)})
+
+    names = [n.name for n in orch.schedule]
+    assert "semantic_search" in names
+    assert "tracking" in names
+    results = orch.process_frame(_real_image_frame(0, 0.0))
+    assert "embeddings" not in results  # disabled encoder produces nothing, but boots
+
+
+def test_semantic_search_sinks_embedding_through_persistence(monkeypatch):
+    ops: list[dict] = []
+    monkeypatch.setattr("perception.modules.persistence.DatabaseWriter", lambda *a, **k: _Recorder(ops))
+    monkeypatch.setattr("perception.modules.embeddings.get_embedder", lambda *a, **k: _FakeEmbedder())
+    cfg = _config(
+        "object_detection",
+        "semantic_search",
+        "persistence",
+        extra_caps={"semantic_search": {"enabled": True, "rpc_port": 5062}},
+    )
+    orch = Orchestrator(cfg, overrides={"object_detection": _DetectorModule(_const_detections_factory)})
+
+    pers = next(n.module for n in orch.schedule if n.name == "persistence")
+    assert "embeddings" in pers.requires()
+    assert pers.params["_embedding_sinks"] == ["semantic_search"]
+
+    for frame_id in range(40):  # same track, same confidence -> exactly one embedding
+        orch.process_frame(_real_image_frame(frame_id, frame_id * 0.1))
+
+    deadline = time.time() + 5.0
+    while time.time() < deadline and not any(op["op"] == "insert_embedding" for op in ops):
+        orch.process_frame(_real_image_frame(99, 9.9))  # keep draining until the worker lands
+        time.sleep(0.02)
+
+    inserts = [op for op in ops if op["op"] == "insert_embedding"]
+    assert len(inserts) == 1
+    first = inserts[0]
+    assert first["model"] == "fake_clip"
+    assert first["track_uid"] == track_uuid("loading_dock", 1)
+    assert "captured_at" in first["meta"]
+
+
+def test_semantic_search_off_leaves_zero_trace_in_schedule_and_sink(monkeypatch):
+    ops: list[dict] = []
+    monkeypatch.setattr("perception.modules.persistence.DatabaseWriter", lambda *a, **k: _Recorder(ops))
+    cfg = _config("object_detection", "persistence")
+    orch = Orchestrator(cfg, overrides={"object_detection": _DetectorModule(_const_detections_factory)})
+
+    assert "semantic_search" not in [n.name for n in orch.schedule]
+    pers = next(n.module for n in orch.schedule if n.name == "persistence")
+    assert "embeddings" not in pers.requires()
+    assert pers.params["_embedding_sinks"] == []
+
+    for frame_id in range(30):
+        orch.process_frame(_real_image_frame(frame_id, frame_id * 0.1))
+
+    assert not any(op["op"] == "insert_embedding" for op in ops)

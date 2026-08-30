@@ -14,6 +14,7 @@ from ._registry_stubs import (
     producer_keys,
 )
 from .behavior_loitering import BehaviorLoitering
+from .embeddings import SemanticSearch
 from .object_detection import ObjectDetection
 from .persistence import Persistence
 from .tracking import Track, Tracking, Tracks
@@ -29,6 +30,7 @@ __all__ = [
     "capability_of",
     "producer_keys",
     "BehaviorLoitering",
+    "SemanticSearch",
     "ObjectDetection",
     "Persistence",
     "Tracking",

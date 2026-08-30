@@ -10,12 +10,14 @@ from __future__ import annotations
 import pytest
 
 from perception.modules.base import CAP, Frame
+from perception.modules.embeddings import SemanticEmbeddings
 from perception.modules.persistence import Persistence
 from perception.modules.tracking import Track, Tracks
 from perception.persistence import (
     DatabaseWriter,
     behavior_event_id,
     camera_id,
+    embedding_id,
     event_id,
     track_uuid,
     zone_id,
@@ -326,6 +328,83 @@ class TestModuleLogic:
         )
         assert ops == []
 
+    def _embedding_rows(self):
+        return [
+            {
+                "camera": "loading_dock",
+                "track_id": 1,
+                "model": "open_clip",
+                "vector": [0.1, 0.2, 0.3],
+                "meta": {"class_name": "person", "class_id": 0, "confidence": 0.9,
+                         "xyxy": [40.0, 30.0, 80.0, 90.0], "captured_at": 1000.0},
+            },
+            {
+                "camera": "loading_dock",
+                "track_id": 2,
+                "model": "open_clip",
+                "vector": [0.4, 0.5, 0.6],
+                "meta": {"class_name": "car", "class_id": 2, "confidence": 0.8,
+                         "xyxy": [50.0, 30.0, 90.0, 80.0], "captured_at": 1000.5},
+            },
+        ]
+
+    def test_embedding_rows_are_sunk_via_carrier_and_dict(self):
+        ops: list[dict] = []
+        module = _make_module(FakeWriter(ops=ops))
+        module.configure({"_embedding_sinks": ["semantic_search"]})
+
+        # one carrier payload + one bare dict payload exercise both decoders
+        carrier = SemanticEmbeddings(self._embedding_rows())
+        bare = {"embeddings": self._embedding_rows()}
+        module.process(
+            _frame(),
+            {
+                "detections": _detections(),
+                "tracks": [_tracks(_track(gid=1), _track(gid=2, class_id=2))],
+                zone_key(): [_membership("loading_dock", 1, [])],
+                CAP["embeddings"].key: [carrier, bare],
+            },
+        )
+
+        inserts = [op for op in ops if op["op"] == "insert_embedding"]
+        assert len(inserts) == 4  # 2 rows x 2 payloads (carrier + bare dict)
+        first = inserts[0]
+        assert first["embedding_uid"] == embedding_id("loading_dock", 1, "open_clip", 1000.0)
+        assert first["track_uid"] == track_uuid("loading_dock", 1)
+        assert first["model"] == "open_clip"
+        assert first["vector"] == [0.1, 0.2, 0.3]
+        assert first["meta"]["captured_at"] == 1000.0
+
+    def test_embedding_sink_ignored_when_no_producer_enabled(self):
+        ops: list[dict] = []
+        module = _make_module(FakeWriter(ops=ops))  # default: _sink_embeddings False
+        module.process(
+            _frame(),
+            {
+                "detections": _detections(),
+                "tracks": [_tracks(_track(gid=1))],
+                zone_key(): [_membership("loading_dock", 1, [])],
+                CAP["embeddings"].key: [{"embeddings": self._embedding_rows()}],
+            },
+        )
+        assert all(op["op"] != "insert_embedding" for op in ops)
+
+    def test_embedding_sink_ignores_unknown_camera(self):
+        ops: list[dict] = []
+        module = _make_module(FakeWriter(ops=ops))
+        module.configure({"_embedding_sinks": ["semantic_search"]})
+        module.process(
+            _frame(),
+            {
+                "detections": _detections(),
+                "tracks": [_tracks(_track(gid=1))],
+                zone_key(): [_membership("loading_dock", 1, [])],
+                CAP["embeddings"].key: [[{"camera": "ghost_cam", "track_id": 1, "model": "open_clip",
+                                          "vector": [0.1], "meta": {"captured_at": 1.0}}]],
+            },
+        )
+        assert all(op["op"] != "insert_embedding" for op in ops)
+
 
 class TestWriterOps:
     def _params(self, op: dict):
@@ -438,7 +517,35 @@ class TestWriterOps:
         b = behavior_event_id("loitering", "c", "z", 1, 1000.0)
         assert a == b
         assert a != behavior_event_id("loitering", "c", "z", 1, 1000.5)
-        assert a != event_id("c", "z", 1, 1000.0)  # never collides with entered_zone rows
+
+    def test_embedding_id_is_deterministic_and_model_scoped(self):
+        a = embedding_id("c", 7, "open_clip", 1000.0)
+        b = embedding_id("c", 7, "open_clip", 1000.0)
+        assert a == b
+        assert a != embedding_id("c", 7, "open_clip", 1000.5)
+        assert a != embedding_id("c", 7, "jina_clip", 1000.0)
+        assert a != embedding_id("d", 7, "open_clip", 1000.0)
+        # never collides with entered_zone (event_id) or behavior rows
+        assert a != event_id("c", "z", 1, 1000.0)
+        assert a != behavior_event_id("loitering", "c", "z", 1, 1000.0)
+
+    def test_insert_embedding_params(self):
+        p = self._params(
+            {
+                "op": "insert_embedding",
+                "embedding_uid": embedding_id("c", 7, "open_clip", 1000.0),
+                "track_uid": track_uuid("c", 7),
+                "model": "open_clip",
+                "vector": [0.1234567, -0.2, 0.0],
+                "meta": {"captured_at": 1000.0, "class_name": "person"},
+            }
+        )
+        # (embedding_uid, track_uid, model, vector_str ::vector, meta_json ::jsonb)
+        assert p[0] == embedding_id("c", 7, "open_clip", 1000.0)
+        assert p[1] == track_uuid("c", 7)
+        assert p[2] == "open_clip"
+        assert p[3] == "[0.123457,-0.200000,0.000000]"
+        assert p[4] == '{"captured_at": 1000.0, "class_name": "person"}'
 
     def test_unknown_op_raises(self):
         from perception.persistence import _params_for

@@ -46,8 +46,9 @@ capabilities:
       enabled: false          # deferred — see docs/BACKLOG.md
 
   semantic_search:
-    enabled: false            # Stage 7 — off until local-CLIP embeddings land
-    embedding_model: local_clip   # must stay local — no cloud embedding APIs
+    enabled: false            # Stage 7 shipped — flip to true to embed tracked crops with local CLIP
+    embedding_model: local_clip   # must stay local — no cloud embedding APIs (OpenCLIP ViT-H/14, 1024-dim = vector(1024))
+    # device: auto        # auto -> cuda; set "cpu" only to free the GPU entirely for YOLO
 
   persistence:
     enabled: true             # Stage 5 — sink detections/tracks/zone events to Postgres

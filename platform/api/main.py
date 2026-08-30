@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Query
 
 import db
+import nl
+import search
 
 APP_NAME = "Surveillance Intelligence Lab"
 APP_VERSION = "0.1.0-alpha"
@@ -239,3 +241,99 @@ def list_events(
             for row in rows
         ]
     }
+
+
+# --------------------------------------------------------------------------- #
+# Stage 7 — semantic search endpoints
+# --------------------------------------------------------------------------- #
+
+
+def _catalogs() -> nl.Catalogs:
+    conn = get_conn()
+    cameras, zones = [], []
+    if conn is not None:
+        cameras = [row[0] for row in conn.cursor().execute("SELECT name FROM cameras ORDER BY name")]
+        zones = [row[0] for row in conn.cursor().execute("SELECT name FROM zones ORDER BY name")]
+    return nl.Catalogs(cameras=cameras, zones=zones, labels=list(search.COCO80))
+
+
+@app.get("/api/search")
+def semantic_search(
+    q: str | None = Query(None, description="NL query; parsed into structured filters + semantic text"),
+    camera: str | None = Query(None),
+    zone: str | None = Query(None),
+    label: str | None = Query(None),
+    event: str | None = Query(None),
+    from_: str | None = Query(None, alias="from", description="ISO-8601 window start"),
+    to: str | None = Query(None, description="ISO-8601 window end"),
+    similar: str | None = Query(None, description="embedding id to find similar thumbnails to"),
+    sort: str = Query("relevance", pattern="^(relevance|date)$", description="relevance (KNN) or date (newest first)"),
+    limit: int = Query(24, ge=1, le=200),
+) -> dict:
+    """Apply structured filters first, then pgvector KNN inside that set.
+
+    Query text is embedded by the perception container's CLIP RPC when a
+    semantic remainder exists; without one (or when the RPC is down) results
+    fall back to the newest embeddings in the filtered set.
+    """
+    conn = _require_db()
+    cats = _catalogs()
+    parsed = nl.parse_nl(q, cats) if q else None
+
+    if similar:
+        results = search.search_embeddings(
+            conn,
+            camera=camera,
+            zone=zone,
+            label=label,
+            event_type=event,
+            time_from=_dt(from_) if from_ else None,
+            time_to=_dt(to) if to else None,
+            similar_id=similar,
+            sort=sort,
+            limit=limit,
+        )
+        semantic = True
+    else:
+        camera = camera or (parsed.camera if parsed else None)
+        zone = zone or (parsed.zone if parsed else None)
+        label = label or (parsed.label if parsed else None)
+        event = event or (parsed.event_type if parsed else None)
+        t_from = _dt(from_) if from_ else (parsed.time_from if parsed else None)
+        t_to = _dt(to) if to else (parsed.time_to if parsed else None)
+        query_vector = None
+        if parsed and parsed.semantic_text:
+            query_vector = search.embed_query_text(parsed.semantic_text)
+        results = search.search_embeddings(
+            conn,
+            camera=camera,
+            zone=zone,
+            label=label,
+            event_type=event,
+            time_from=t_from,
+            time_to=t_to,
+            query_vector=query_vector,
+            sort=sort,
+            limit=limit,
+        )
+        semantic = query_vector is not None
+
+    return {
+        "query": q or "",
+        "semantic": semantic,
+        "filters": (parsed.json() if parsed else {}) | {
+            "camera": camera,
+            "zone": zone,
+            "label": label,
+            "event": event,
+        },
+        "results": results["results"],
+        "count": results["count"],
+    }
+
+
+@app.get("/api/explore/summary")
+def explore_summary() -> dict:
+    """Label -> embedding counts for the Explore landing grid."""
+    conn = _require_db()
+    return search.summary(conn)

@@ -21,6 +21,7 @@ shown as shipped / in progress / planned.
 | Data layer (Postgres/pgvector) | 5 | All 8 tables; DoD reconstruction query verified on GPU vs live Postgres |
 | Dashboard live streams | 10 (part) | Live grid + camera detail real `<video>` over MSE |
 | Loitering | 6 | Dwell state machine on zone membership; debounced `(event_type, tracker_id)`; config-toggle proven live (events persisted only when armed) |
+| Embeddings & semantic search | 7 | Local OpenCLIP ViT-H/14 (1024-dim, fp16 on GPU) on track crops → `pgvector` HNSW; NL query → structured filters first then KNN; query text embedded by the perception embed RPC; live-proven on the deployed stack |
 
 ## In progress
 
@@ -33,9 +34,6 @@ shown as shipped / in progress / planned.
 
 ## Planned
 
-- **Stage 7 — Embeddings & semantic search.** Local CLIP on finalized-track thumbnails (async, off
-  the hot path) → `embeddings` (pgvector); NL query → `{structured_filters, semantic_text}` →
-  filtered vector search; wire the Explore page.
 - **Stage 8 — one of Face Recognition or ANPR.** Shares upstream crops; proves dedup under a second
   real module.
 

@@ -168,6 +168,20 @@ def _flatten_capabilities(raw: dict[str, Any]) -> dict[str, CapabilityConfig]:
             dwell = p.get("dwell_threshold_seconds")
             if dwell is not None and not (isinstance(dwell, (int, float)) and dwell >= 0):
                 raise ConfigError("behavior.loitering.dwell_threshold_seconds must be >= 0")
+        if name == "semantic_search":
+            model = p.get("embedding_model")
+            if model is not None and not isinstance(model, str):
+                raise ConfigError("semantic_search.embedding_model must be a model name string")
+            port = p.get("rpc_port")
+            if port is not None and not (isinstance(port, int) and 1 <= port <= 65535):
+                raise ConfigError("semantic_search.rpc_port must be an integer in 1..65535")
+            for key in ("refresh_seconds", "confidence_eps", "thumbnail_size", "batch_size", "max_queue"):
+                value = p.get(key)
+                if value is not None and (not isinstance(value, (int, float)) or value <= 0):
+                    raise ConfigError(f"semantic_search.{key} must be a positive number")
+            device = p.get("device")
+            if device is not None and str(device) not in ("auto", "cpu", "cuda", "gpu"):
+                raise ConfigError("semantic_search.device must be auto|cpu|cuda")
         if name == "persistence":
             sampling = p.get("detection_sampling", 1)
             if not isinstance(sampling, int) or sampling < 1:

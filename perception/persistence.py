@@ -54,6 +54,16 @@ def behavior_event_id(event_type: str, camera: str, zone: str | None, global_tra
     return uuid.uuid5(AINA_NAMESPACE, f"event:{event_type}:{camera}:{zone}:{global_track_id}:{started_ts:.6f}")
 
 
+def embedding_id(camera: str, global_track_id: int, model: str, captured_ts: float) -> uuid.UUID:
+    """Deterministic uuid for an embeddings row.
+
+    Keyed on the named model + capture timestamp so re-encoding the same crop is
+    an idempotent no-op and a track re-embedded at a later moment is a new row
+    (same pair of objects can meaningfully have several embeddings over time).
+    """
+    return uuid.uuid5(AINA_NAMESPACE, f"embed:{camera}:{global_track_id}:{model}:{captured_ts:.6f}")
+
+
 class _Ops:
     """SQL templates; each submitted op is a dict keyed by these op names."""
 
@@ -101,6 +111,10 @@ class _Ops:
     END_EVENT = (
         "UPDATE events SET ended_at = %s "
         "WHERE track_id = %s AND event_type = %s AND ended_at IS NULL"
+    )
+    INSERT_EMBEDDING = (
+        "INSERT INTO embeddings (id, track_id, model, vector, meta) "
+        "VALUES (%s, %s, %s, %s::vector, %s::jsonb) ON CONFLICT DO NOTHING"
     )
 
 
@@ -277,6 +291,7 @@ def _sql_for(op: dict[str, Any]) -> str | None:
         "end_zone": _Ops.END_ZONE,
         "insert_event": _Ops.INSERT_EVENT,
         "end_event": _Ops.END_EVENT,
+        "insert_embedding": _Ops.INSERT_EMBEDDING,
     }.get(op["op"])
 
 
@@ -327,7 +342,20 @@ def _params_for(op: dict[str, Any]) -> tuple[Any, ...]:
         )
     if kind == "end_event":
         return (op["ended_at"], op["track_uid"], op["event_type"])
+    if kind == "insert_embedding":
+        return (
+            op["embedding_uid"],
+            op.get("track_uid"),
+            op["model"],
+            _vector_str(op["vector"]),
+            json_dumps(op.get("meta", {})),
+        )
     raise ValueError(f"persistence op {kind!r} has no params mapping")
+
+
+def _vector_str(vector: Any) -> str:
+    """psycopg adapts a Python str fine; pgvector parses '[v0, v1, ...]'."""
+    return "[{}]".format(",".join(f"{float(v):.6f}" for v in vector))
 
 
 def json_dumps(value: Any) -> str:

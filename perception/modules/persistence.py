@@ -25,6 +25,7 @@ from ..persistence import (
     DatabaseWriter,
     behavior_event_id,
     camera_id,
+    embedding_id,
     event_id,
     track_uuid,
     zone_id,
@@ -89,11 +90,16 @@ class Persistence(PerceptionModule):
         # True when the orchestrator resolved >= 1 enabled behavior module that
         # produces "events" (e.g. behavior_loitering); sink only then.
         self._sink_events = False
+        # True when the orchestrator resolved >= 1 enabled module producing
+        # "embeddings" (semantic_search); sink only then.
+        self._sink_embeddings = False
 
     def requires(self) -> list[str]:
         keys = [CAP["detections"].key, CAP["tracks"].key, CAP["zone_membership"].key]
         if self._sink_events:
             keys.append(CAP["events"].key)
+        if self._sink_embeddings:
+            keys.append(CAP["embeddings"].key)
         return keys
 
     def produces(self) -> list[str]:
@@ -119,6 +125,10 @@ class Persistence(PerceptionModule):
         # Keeping this off when behavior.* is disabled guarantees the sink never
         # auto-enables a behavior module the operator toggled off.
         self._sink_events = bool(self.params.get("_behavior_events"))
+        # Semantic embeddings: same gating rule as behavior events — the sink
+        # only requires/looks for "embeddings" when the orchestrator resolved an
+        # enabled module producing it (semantic_search).
+        self._sink_embeddings = bool(self.params.get("_embedding_sinks"))
 
     def start(self) -> None:
         self._writer = DatabaseWriter(make_connect(self._db))
@@ -229,6 +239,8 @@ class Persistence(PerceptionModule):
         # behavior-module events (loitering...) -> events table, only when the
         # orchestrator resolved an enabled behavior producer
         self._sink_behavior_events(upstream.get(CAP["events"].key, []))
+        # semantic_search rows (CLIP crops) -> pgvector, same gating rule
+        self._sink_embeddings_rows(upstream.get(CAP["embeddings"].key, []))
         return {}
 
     def _apply_transitions(
@@ -299,6 +311,32 @@ class Persistence(PerceptionModule):
                         }
                     )
 
+    def _sink_embeddings_rows(self, payloads: list[Any]) -> None:
+        """Turn ``embeddings`` capability rows into INSERT_EMBEDDING DB ops."""
+        writer = self._writer
+        if not self._sink_embeddings or writer is None:
+            return
+        for payload in payloads:
+            for row in _embedding_rows(payload):
+                source = row.get("camera")
+                camera_uid = self._camera_uid.get(source) if source else None
+                if camera_uid is None:
+                    continue
+                meta = dict(row.get("meta") or {})
+                captured_ts = float(meta.get("captured_at", 0.0))
+                writer.submit(
+                    {
+                        "op": "insert_embedding",
+                        "embedding_uid": embedding_id(
+                            source, row["track_id"], row["model"], captured_ts
+                        ),
+                        "track_uid": track_uuid(source, row["track_id"]),
+                        "model": row["model"],
+                        "vector": row["vector"],
+                        "meta": meta,
+                    }
+                )
+
     def stop(self) -> None:
         if self._writer is not None:
             self._writer.stop()
@@ -351,6 +389,22 @@ def _behavior_rows(value: Any) -> list[dict[str, Any]]:
     if not isinstance(rows, (list, tuple)):
         return []
     return [row for row in rows if isinstance(row, dict) and row.get("event_type")]
+
+
+def _embedding_rows(value: Any) -> list[dict[str, Any]]:
+    """Flatten one ``embeddings`` capability payload into row dicts.
+
+    Accepts a ``SemanticEmbeddings`` carrier (``.rows``) or a bare list of the
+    row dicts emitted by semantic_search: `camera`, `track_id`, `model`,
+    `vector`, `meta`.
+    """
+    if isinstance(value, dict):
+        rows = value.get("embeddings") or []
+    else:
+        rows = getattr(value, "rows", value)
+    if not isinstance(rows, (list, tuple)):
+        return []
+    return [row for row in rows if isinstance(row, dict) and row.get("vector") is not None]
 
 
 def _class_names(values: list[Any]) -> dict[int, str]:

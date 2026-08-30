@@ -90,6 +90,52 @@ export function streamUrl(cameraId: string): string {
   return `/media/api/stream.mp4?src=${encodeURIComponent(cameraId)}`;
 }
 
+// --------------------------------------------------------------------------- //
+// Stage 7 — semantic search (Explore). Real CLIP embeddings + pgvector KNN via
+// /api/search; mock fallback keeps the page rendering without the API.
+// --------------------------------------------------------------------------- //
+
+export type ExploreHit = {
+  embedding_id: string;
+  track_id: number;
+  camera: string;
+  zone: string | null;
+  label: string;
+  confidence: number | null;
+  captured_at: number | null;
+  similarity: number | null;
+  thumbnail: string | null;
+  model: string;
+};
+
+export type ExploreSummaryRow = { label: string; count: number };
+
+export type SearchParams = {
+  q?: string;
+  camera?: string;
+  label?: string;
+  similar?: string;
+  sort?: "relevance" | "date";
+  limit?: number;
+};
+
+export async function searchExplore(params: SearchParams): Promise<ExploreHit[] | null> {
+  const sp = new URLSearchParams();
+  if (params.q?.trim()) sp.set("q", params.q.trim());
+  if (params.camera && params.camera !== "all") sp.set("camera", params.camera);
+  if (params.label && params.label !== "all") sp.set("label", params.label);
+  if (params.similar) sp.set("similar", params.similar);
+  if (params.sort) sp.set("sort", params.sort);
+  sp.set("limit", String(params.limit ?? 24));
+  const data = await fetchJson<{ results?: ExploreHit[] }>(`/api/search?${sp.toString()}`, 20000);
+  return data && Array.isArray(data.results) ? data.results : null;
+}
+
+export async function exploreSummary(): Promise<ExploreSummaryRow[] | null> {
+  const data = await fetchJson<{ summary?: ExploreSummaryRow[] }>("/api/explore/summary", 8000);
+  return data && Array.isArray(data.summary) ? data.summary : null;
+}
+
 /** Live camera list with mock fallback; refresh every `intervalMs`. */
 export function useCameras(intervalMs = 10000): { cameras: MediaCamera[]; fromApi: boolean } {
   const [cameras, setCameras] = useState<MediaCamera[]>(mockCameras);

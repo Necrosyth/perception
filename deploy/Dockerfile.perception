@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     && RM="rm -rf /usr/local/cuda-12.4 /usr/local/cuda-12 /usr/local/cuda" \
     && UV_CACHE_DIR=/root/.cache/uv python3 -m uv export \
            --project /srv/aina/perception \
-           --extra detection --extra db --no-dev --no-hashes \
+           --extra detection --extra db --extra semantic --no-dev --no-hashes \
        > /tmp/aina_deps.txt \
     && UV_CACHE_DIR=/root/.cache/uv python3 -m uv pip install --system -r /tmp/aina_deps.txt \
     && $RM \
