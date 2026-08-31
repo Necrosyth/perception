@@ -129,6 +129,9 @@ class Persistence(PerceptionModule):
         # only requires/looks for "embeddings" when the orchestrator resolved an
         # enabled module producing it (semantic_search).
         self._sink_embeddings = bool(self.params.get("_embedding_sinks"))
+        # tracker backend injected by the orchestrator (tracking.backend), so
+        # every track row records the backend that actually produced it.
+        self._tracking_backend = str(self.params.get("_tracking_backend", "bytetrack"))
 
     def start(self) -> None:
         self._writer = DatabaseWriter(make_connect(self._db))
@@ -190,11 +193,11 @@ class Persistence(PerceptionModule):
                     "track_uid": track_uuid(track.source, track.track_id),
                     "camera_uid": camera_uid,
                     "global_track_id": track.track_id,
-                    "tracker_backend": _backend_name(),
+                    "tracker_backend": self._tracking_backend,
                     "class_id": int(track.class_id),
                     "class_name": class_name,
                     "first_seen": _dt(track.last_timestamp),
-                    "last_seen": _dt(text_now()),
+                    "last_seen": _dt(now),
                     "frames_delta": 0 if track.coasted else 1,
                     "coasted_delta": 1 if track.coasted else 0,
                     "peak_confidence": float(track.confidence),
@@ -211,7 +214,7 @@ class Persistence(PerceptionModule):
                         "op": "insert_detection",
                         "camera_uid": camera_uid,
                         "track_uid": track_uuid(track.source, track.track_id),
-                        "ts": _dt(text_now()),
+                        "ts": _dt(now),
                         "frame_idx": int(tracks_payload.frame_idx or 0),
                         "x1": float(round(track.raw_xyxy[0], 2)),
                         "y1": float(round(track.raw_xyxy[1], 2)),
@@ -232,7 +235,7 @@ class Persistence(PerceptionModule):
             if key in live:
                 continue
             if now - self._last_seen[key] > self._finalize_timeout_s:
-                writer.submit({"op": "finalize_track", "track_uid": track_uuid(*key), "ended_at": _dt(text_now())})
+                writer.submit({"op": "finalize_track", "track_uid": track_uuid(*key), "ended_at": _dt(now)})
                 del self._last_seen[key]
                 self._in_zone.pop(key, None)
 
@@ -258,7 +261,7 @@ class Persistence(PerceptionModule):
                     "camera_uid": self._camera_uid[key[0]],
                     "track_uid": track_uuid(key[0], key[1]),
                     "zone_uid": zone_id(key[0], zone),
-                    "started_at": _dt(text_now()),
+                    "started_at": _dt(now),
                     "data": {"entered_at": now},
                 }
             )
@@ -268,7 +271,7 @@ class Persistence(PerceptionModule):
                     "op": "end_zone",
                     "track_uid": track_uuid(key[0], key[1]),
                     "zone_uid": zone_id(key[0], zone),
-                    "ended_at": _dt(text_now()),
+                    "ended_at": _dt(now),
                 }
             )
         if entered_zones or left_zones:
@@ -417,19 +420,7 @@ def _class_names(values: list[Any]) -> dict[int, str]:
     return out
 
 
-def _backend_name() -> str:
-    # Tracking backend is not a produced capability yet; keep the default
-    # consistent with config so the column is meaningful, not wrong.
-    return "bytetrack"
-
-
 def _dt(epoch: float):
     from datetime import datetime, timezone
 
     return datetime.fromtimestamp(epoch, tz=timezone.utc)
-
-
-def text_now() -> float:
-    import time
-
-    return time.time()

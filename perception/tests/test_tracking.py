@@ -86,6 +86,28 @@ def test_bytetrack_new_high_detection_spawns_new_track_but_keeps_old():
     assert len(ids) == 2  # one carried over + one brand new
 
 
+def test_bytetrack_coast_glides_by_elapsed_time():
+    """Coasted priors must move proportionally to the real dt (px/s)."""
+
+    def run(gap: float) -> float:
+        backend = TrackerRegistry.create({"backend": "bytetrack", "iou_threshold": 0.3, "track_thresh": 0.5})
+        # seed a rightward velocity with overlapping steps (IoU > gate -> one track)
+        backend.update(0, 0.0, _dets([[0.0, 0.0, 20.0, 40.0]], [0.9], [0])["xyxy"],
+                       _dets([[0.0, 0.0, 20.0, 40.0]], [0.9], [0])["confidence"],
+                       _dets([[0.0, 0.0, 20.0, 40.0]], [0.9], [0])["class_id"])
+        backend.update(1, 0.1, _dets([[6.0, 0.0, 26.0, 40.0]], [0.9], [0])["xyxy"],
+                       _dets([[6.0, 0.0, 26.0, 40.0]], [0.9], [0])["confidence"],
+                       _dets([[6.0, 0.0, 26.0, 40.0]], [0.9], [0])["class_id"])
+        # coast: gap seconds after t=0.1, no detection
+        states = backend.update(2, 0.1 + gap, None, None, None)
+        assert len(states) == 1
+        assert states[0].predicted_xyxy is not None
+        cx = (states[0].predicted_xyxy[0] + states[0].predicted_xyxy[2]) / 2.0
+        return cx
+
+    assert run(0.4) > run(0.1)  # longer real gap -> glides further
+
+
 def test_iou_backend_coasts_and_expires():
     backend = TrackerRegistry.create({"backend": "iou", "iou_threshold": 0.3})
     backend.set_max_lost_frames(3)

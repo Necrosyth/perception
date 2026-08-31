@@ -78,6 +78,7 @@ class Tracking(PerceptionModule):
         self._kalmans: dict[tuple[str, int], KalmanCV] = {}
         self._euros: dict[tuple[str, int], BoxOneEuro] = {}
         self._last_render: dict[tuple[str, int], tuple[float, float, float, float]] = {}
+        self._track_t: dict[tuple[str, int], float] = {}
         self._gids: dict[tuple[str, int], int] = {}
         self._next_gid = 1
         self._fps: dict[str, float] = {}
@@ -157,23 +158,30 @@ class Tracking(PerceptionModule):
     def _to_track(self, frame: Frame, st: TrackState) -> Track:
         gid = self._gid_for(frame.source, st.track_id)
         coasted = st.raw_xyxy is None
+        key = (frame.source, gid)
+        # real elapsed time since this track's last render — Kalman/OneEuro step
+        # by seconds, so dropped or bursty frames glide at the true heading
+        prev_t = self._track_t.get(key)
+        dt = max(frame.timestamp - prev_t, 1e-3) if prev_t is not None else 1.0
         if coasted:
-            box = self._coast(frame, gid, st)
+            box = self._coast(frame, gid, st, dt)
         else:
             box = st.raw_xyxy
             if self._interpolating():
                 # time step into this frame, then absorb the measurement, so a
                 # coasted frame can continue the velocity we just learned
-                kf = self._kalmans.get((frame.source, gid))
+                kf = self._kalmans.get(key)
                 if kf is None:
-                    kf = self._kalmans.setdefault((frame.source, gid), KalmanCV(box))
+                    kf = self._kalmans.setdefault(key, KalmanCV(box))
                 else:
-                    kf.predict()
+                    kf.predict(dt)
                 kf.update(box)
+        self._track_t[key] = frame.timestamp
 
         render = box
         if self._smoothing_on("one_euro_filter"):
-            euro = self._euros.setdefault((frame.source, gid), BoxOneEuro(**self._euro_kwargs()))
+            fps = self._fps.get(frame.source, DEFAULT_FPS)
+            euro = self._euros.setdefault(key, BoxOneEuro(**self._euro_kwargs(fps)))
             render = euro.apply(box, frame.timestamp)
 
         self._last_render[(frame.source, gid)] = render
@@ -191,7 +199,7 @@ class Tracking(PerceptionModule):
             last_timestamp=frame.timestamp,
         )
 
-    def _coast(self, frame: Frame, gid: int, st: TrackState) -> tuple[float, float, float, float]:
+    def _coast(self, frame: Frame, gid: int, st: TrackState, dt: float) -> tuple[float, float, float, float]:
         """Render box when no detection matched this frame.
 
         With `render_interpolation` the per-track Kalman continues its motion
@@ -207,7 +215,7 @@ class Tracking(PerceptionModule):
                 if seed is None:
                     raise TrackerError("cannot coast a track with no history")
                 kf = self._kalmans.setdefault(key, KalmanCV(seed))
-            return kf.predict()
+            return kf.predict(dt)
         return st.predicted_xyxy if st.predicted_xyxy is not None else self._last_render.get(key, st.raw_xyxy or (0.0, 0.0, 0.0, 0.0))
 
     def _gid_for(self, source: str, local: int) -> int:
@@ -233,6 +241,9 @@ class Tracking(PerceptionModule):
         for track_key in list(self._last_render):
             if track_key not in alive and track_key[0] == source:
                 del self._last_render[track_key]
+        for track_key in list(self._track_t):
+            if track_key not in alive and track_key[0] == source:
+                del self._track_t[track_key]
         for track_key in list(self._gids):
             if track_key not in alive and track_key[0] == source:
                 del self._gids[track_key]
@@ -247,12 +258,12 @@ class Tracking(PerceptionModule):
     def _smoothing_on(self, key: str) -> bool:
         return self._sm_bool(key)
 
-    def _euro_kwargs(self) -> dict[str, float]:
+    def _euro_kwargs(self, fps: float) -> dict[str, float]:
         return {
             "min_cutoff": float(self._sm.get("min_cutoff", 1.0)),
             "beta": float(self._sm.get("beta", 0.007)),
             "d_cutoff": float(self._sm.get("d_cutoff", 1.0)),
-            "freq": DEFAULT_FPS,
+            "freq": fps,
         }
 
     def stop(self) -> None:
@@ -262,6 +273,7 @@ class Tracking(PerceptionModule):
         self._kalmans = {}
         self._euros = {}
         self._last_render = {}
+        self._track_t = {}
         self._gids = {}
         self._next_gid = 1
 

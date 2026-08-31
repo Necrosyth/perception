@@ -23,15 +23,16 @@ LOW_SCORE_FLOOR = 0.1
 
 
 class _KalmanBox:
-    """Constant-velocity box Kalman filter (state: cx, cy, w, h, vx, vy)."""
+    """Constant-velocity box Kalman filter (state: cx, cy, w, h, vx, vy).
+
+    ``predict(dt)`` steps by real elapsed seconds so coasted predictions track
+    the actual frame cadence (velocity in px/s).
+    """
 
     def __init__(self, box: tuple[float, float, float, float]) -> None:
         self.x = np.concatenate([self._to_state(box), np.zeros(2)])
         self.P = np.eye(6) * 20.0
         self.P[4:, 4:] *= 5.0  # velocity prior less certain -> learns fast
-        self.F = np.eye(6)
-        self.F[0, 4] = 1.0
-        self.F[1, 5] = 1.0
         self.H = np.zeros((4, 6))
         self.H[:4, :4] = np.eye(4)
         self.R = np.eye(4) * 5.0
@@ -39,9 +40,15 @@ class _KalmanBox:
         self.Q[:4, :4] *= 1.0
         self.Q[4:, 4:] *= 0.1
 
-    def predict(self) -> None:
-        self.x = self.F @ self.x
-        self.P = self.F @ self.P @ self.F.T + self.Q
+    def predict(self, dt: float = 1.0) -> None:
+        dt = max(float(dt), 1e-3)
+        F = np.eye(6)
+        F[0, 4] = dt
+        F[1, 5] = dt
+        Q = self.Q.copy()
+        Q[4:, 4:] *= dt
+        self.x = F @ self.x
+        self.P = F @ self.P @ F.T + Q
 
     def update(self, box: tuple[float, float, float, float]) -> None:
         z = self._to_state(box)
@@ -77,6 +84,7 @@ class ByteTrackBackend(TrackerBackend):
         self.iou_threshold = 0.3
         self.track_thresh = 0.5
         self._next_id = 1
+        self._last_ts: float | None = None
         # track_id -> {kf, class_id, confidence, lost_count, age}
         self._tracks: dict[int, dict[str, Any]] = {}
 
@@ -107,9 +115,11 @@ class ByteTrackBackend(TrackerBackend):
             for box, c, k in zip(boxes, confs, cls)
         ]
 
-        # 0. Advance every track's motion model to "now".
+        # 0. Advance every track's motion model to "now" (real elapsed time).
+        dt = max(timestamp - self._last_ts, 1e-3) if self._last_ts is not None else 1.0
+        self._last_ts = timestamp
         for track in self._tracks.values():
-            track["kf"].predict()
+            track["kf"].predict(dt)
 
         high = {i: d for i, d in enumerate(detections) if d[1] >= self.track_thresh}
         low = {i: d for i, d in enumerate(detections) if LOW_SCORE_FLOOR <= d[1] < self.track_thresh}

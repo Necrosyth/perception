@@ -38,19 +38,6 @@ class FakeWriter:
         self.ops.append(op)
 
 
-class _Clock:
-    """Scripted time source for text_now(); repeats the last value if overrun."""
-
-    def __init__(self, values: list[float]) -> None:
-        self._values = values
-        self._i = 0
-
-    def __call__(self) -> float:
-        v = self._values[min(self._i, len(self._values) - 1)]
-        self._i += 1
-        return v
-
-
 def zone_key() -> str:
     return CAP["zone_membership"].key
 
@@ -196,6 +183,18 @@ class TestModuleLogic:
         assert up["frames_delta"] == 0
         assert up["coasted_delta"] == 1
 
+    def test_tracker_backend_flows_from_config(self):
+        ops: list[dict] = []
+        module = _make_module(FakeWriter(ops=ops))
+        # default (no injection) stays bytetrack
+        module.process(_frame(), _payload(_track(gid=1)))
+        assert next(op for op in ops if op["op"] == "upsert_track")["tracker_backend"] == "bytetrack"
+
+        ops.clear()
+        module.configure({"_tracking_backend": "iou"})
+        module.process(_frame(), _payload(_track(gid=1)))
+        assert next(op for op in ops if op["op"] == "upsert_track")["tracker_backend"] == "iou"
+
     def test_detection_sampling(self):
         ops: list[dict] = []
         module = _make_module(FakeWriter(ops=ops))
@@ -208,12 +207,9 @@ class TestModuleLogic:
         dets = [op for op in ops if op["op"] == "insert_detection"]
         assert [d["frame_idx"] for d in dets] == [2, 4]
 
-    def test_enter_and_leave_zone_events(self, monkeypatch):
+    def test_enter_and_leave_zone_events(self):
         ops: list[dict] = []
         module = _make_module(FakeWriter(ops=ops))
-        monkeypatch.setattr(
-            "perception.modules.persistence.text_now", _Clock([1000.0, 1000.5, 1010.0, 1010.5, 1020.0, 1020.5])
-        )
 
         module.process(_frame(ts=1000.0), _payload(_track(gid=1), zones=(1, ["dock_entry"])))
         module.process(_frame(ts=1010.0), _payload(_track(gid=1), zones=(1, [])))
@@ -224,14 +220,15 @@ class TestModuleLogic:
         enter = next(op for op in ops if op["op"] == "enter_zone")
         assert enter["zone_uid"] == zone_id("loading_dock", "dock_entry")
         assert enter["track_uid"] == track_uuid("loading_dock", 1)
+        # timestamps come from the frame, not wall-clock persist time
+        assert enter["started_at"].timestamp() == 1000.0
         end = next(op for op in ops if op["op"] == "end_zone")
         assert end["zone_uid"] == zone_id("loading_dock", "dock_entry")
+        assert end["ended_at"].timestamp() == 1010.0
 
-    def test_track_finalized_after_timeout(self, monkeypatch):
+    def test_track_finalized_after_timeout(self):
         ops: list[dict] = []
         module = _make_module(FakeWriter(ops=ops))
-        # frame1: upsert(last_seen) + detection call text_now; frame2 finalizes.
-        monkeypatch.setattr("perception.modules.persistence.text_now", _Clock([1000.0, 1000.0, 1006.0]))
 
         module.process(_frame(ts=1000.0), _payload(_track(gid=1, ts=1000.0), zones=(1, [])))
         module.process(_frame(ts=1006.0), _payload(zones=(9, [])), )  # single trailing comma
@@ -239,6 +236,7 @@ class TestModuleLogic:
         finals = [op for op in ops if op["op"] == "finalize_track"]
         assert len(finals) == 1
         assert finals[0]["track_uid"] == track_uuid("loading_dock", 1)
+        assert finals[0]["ended_at"].timestamp() == 1006.0
 
     def test_behavior_event_rows_are_sunk(self):
         ops: list[dict] = []

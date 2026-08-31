@@ -13,15 +13,18 @@ import numpy as np
 
 
 class KalmanCV:
-    """Constant-velocity Kalman on (cx, cy, w, h) + (vx, vy). dt=1/frame."""
+    """Constant-velocity Kalman on (cx, cy, w, h) + (vx, vy).
+
+    ``predict(dt)`` advances by real elapsed seconds: state transition and
+    process noise scale with ``dt`` (velocity is in px/s), so irregular frame
+    delivery — common under variable GPU load — glides at the true heading
+    instead of assuming unit time steps.
+    """
 
     def __init__(self, box: tuple[float, float, float, float]) -> None:
         self.x = self._init_state(box)
         self.P = np.eye(6) * 20.0
         self.P[4:, 4:] *= 5.0  # velocity prior less certain -> learns fast
-        self.F = np.eye(6)
-        self.F[0, 4] = 1.0
-        self.F[1, 5] = 1.0
         self.H = np.zeros((4, 6))
         self.H[:4, :4] = np.eye(4)
         self.R = np.eye(4) * 5.0
@@ -47,10 +50,16 @@ class KalmanCV:
         self.x = self.x + K @ (z - self.H @ self.x)
         self.P = (np.eye(6) - K @ self.H) @ self.P
 
-    def predict(self) -> tuple[float, float, float, float]:
-        """Advance the motion model one frame, return predicted box."""
-        self.x = self.F @ self.x
-        self.P = self.F @ self.P @ self.F.T + self.Q
+    def predict(self, dt: float = 1.0) -> tuple[float, float, float, float]:
+        """Advance the motion model by ``dt`` seconds, return predicted box."""
+        dt = max(float(dt), 1e-3)
+        F = np.eye(6)
+        F[0, 4] = dt
+        F[1, 5] = dt
+        Q = self.Q.copy()
+        Q[4:, 4:] *= dt  # velocity process noise grows with elapsed time
+        self.x = F @ self.x
+        self.P = F @ self.P @ F.T + Q
         return self.box
 
     @property

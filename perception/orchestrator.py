@@ -138,6 +138,11 @@ class Orchestrator:
                 params["_zones_by_source"] = zones_by_source
             if name == "persistence":
                 params["_camera_defs"] = camera_defs
+                # Tracking backend actually in use -> every track row records it.
+                tracking_params = (
+                    config.capabilities["tracking"].params if "tracking" in config.capabilities else {}
+                )
+                params["_tracking_backend"] = tracking_params.get("backend", "bytetrack")
                 # Only sink behavior events when an *enabled* behavior module
                 # produces them; otherwise persistence must not require "events"
                 # (that would auto-enable a behavior module toggled off).

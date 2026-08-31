@@ -49,6 +49,18 @@ def test_kalman_converges_to_measurement():
     assert abs(cx - 110.0) < 1.5  # settled on the measured center
 
 
+def test_kalman_predict_scales_with_dt():
+    """A longer elapsed gap must glide proportionally further (px/s)."""
+    slow = KalmanCV((0.0, 0.0, 20.0, 40.0))
+    fast = KalmanCV((0.0, 0.0, 20.0, 40.0))
+    slow.x[4] = fast.x[4] = 20.0  # 20 px/s horizontally right (cx starts at 10)
+    slow.predict(0.1)
+    fast.predict(0.2)
+    cx = lambda kf: (kf.box[0] + kf.box[2]) / 2.0  # noqa: E731
+    assert cx(fast) == 14.0  # 10 + vx*dt
+    assert cx(slow) == 12.0
+
+
 def test_detection_smoother_passthrough_without_supervision():
     # On this host supervision isn't installed under the core extras, so the
     # enabled smoother must gracefully pass raw detections straight through.
