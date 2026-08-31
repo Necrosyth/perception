@@ -6,9 +6,15 @@ deployment:
 
 cameras:
   - name: loading_dock
-    source: rtsp://user:pass@192.168.1.50:554/stream1   # go2rtc restreams this once
+    source: rtsp://media-sfs8.vdotcameras.com:554/rtplive/FairfaxVideo0231   # public VA-DOT traffic cam; go2rtc restreams once
     zones:
       - name: dock_entry
+        polygon: [[0,0],[100,0],[100,100],[0,100]]
+
+  - name: warehouse_east
+    source: rtsp://media-sfs8.vdotcameras.com:554/rtplive/FairfaxVideo0640   # public VA-DOT traffic cam (restream: rtsp://media:8554/warehouse_east)
+    zones:
+      - name: aisle_4
         polygon: [[0,0],[100,0],[100,100],[0,100]]
 
 capabilities:

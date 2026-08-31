@@ -12,16 +12,19 @@ log:
   level: info
 
 streams:
-  # Demo camera: loops the packaged H.264 clip so the dashboard shows live
-  # video immediately. Point `loading_dock.url` at your real RTSP feed for
-  # 24/7 operation (the perception restream target stays rtsp://…/loading_dock).
+  # Live public traffic CCTV — Virginia DOT cameras (real moving traffic, H.264
+  # RTSP, published for public use). Reliable live source; see
+  # https://github.com/brehldev/va_vdot_public_cameras for the full catalog.
   loading_dock:
-    # Loop the packaged H.264 clip via ffmpeg so the dashboard shows live
-    # video immediately. Point this at your real RTSP feed for 24/7 operation
-    # (the perception restream target stays rtsp://…/loading_dock).
-    url: ffmpeg:/videos/demo_short_h264.mp4#copy
+    url: rtsp://media-sfs8.vdotcameras.com:554/rtplive/FairfaxVideo0231
 
-# Real feeds plug in here, e.g.:
-#   dock_bay:
-#     url: rtsp://user:pass@192.168.1.50:554/stream1
-#     on_demand: false
+  warehouse_east:
+    url: rtsp://media-sfs8.vdotcameras.com:554/rtplive/FairfaxVideo0640
+
+  # ── Swapping in your own camera ─────────────────────────────────────────
+  # Point any stream at your own RTSP feed; go2rtc re-encodes to browser-safe
+  # H.264 on demand for the dashboard <video> tile:
+  #
+  #   loading_dock:
+  #     - rtsp://user:pass@192.168.1.50:554/stream1
+  #     - "ffmpeg:rtsp://user:pass@192.168.1.50:554/stream1#video=h264"

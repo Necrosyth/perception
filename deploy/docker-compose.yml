@@ -8,7 +8,6 @@ services:
       - "${GO2RTC_PORT:-1984}:1984"
     volumes:
       - ./media/go2rtc.yaml:/config/go2rtc.yaml:ro
-      - ./media/videos:/videos:ro
     logging:
       options:
         max-size: "10m"
