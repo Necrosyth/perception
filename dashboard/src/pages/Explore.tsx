@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card, EmptyState, Input, Modal, PageHeader, Segmented, Select } from "../components/ui";
+import { MockScene } from "../components/VideoTile";
 import { I } from "../components/icons";
 import { cameras, labels, exploreResults } from "../lib/mock";
 import type { ExploreHit } from "../lib/api";
@@ -7,8 +8,8 @@ import { exploreSummary, searchExplore } from "../lib/api";
 import { timeAgo } from "../lib/utils";
 
 const searchTypes = [
-  { value: "relevance", label: "Relevance Rank" },
-  { value: "date", label: "Newest First" },
+  { value: "relevance", label: "Best match" },
+  { value: "date", label: "Newest first" },
 ] as const;
 type SortType = (typeof searchTypes)[number]["value"];
 
@@ -31,15 +32,11 @@ function camName(id: string) {
   return cameras.find((c) => c.id === id)?.name ?? id;
 }
 
-function cx(c1: [string, string]) {
-  return `linear-gradient(135deg, ${c1[0]}, ${c1[1]})`;
-}
-
 const PROMPT_SUGGESTIONS = [
   "Forklift near loading dock",
   "Person in red high-vis vest",
-  "Unauthorized vehicle at night",
-  "Loitering near entrance",
+  "Vehicle near entrance after dark",
+  "Someone waiting at the door",
 ];
 
 export default function Explore() {
@@ -99,23 +96,22 @@ export default function Explore() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Semantic Vector Explore"
-        subtitle="Natural language multi-camera search powered by local Jina-CLIP visual embeddings & pgvector KNN"
+        title="Search"
+        subtitle="Natural-language search across recorded footage using on-device visual embeddings"
         badge={
-          <Badge tone="cyan" dot={true}>
-            {fromApi ? "LIVE PGVECTOR KNN" : "LOCAL CLIP EMBEDDINGS"}
+          <Badge tone="accent" dot>
+            {fromApi ? "live vector index" : "local embeddings"}
           </Badge>
         }
       />
 
-      {/* Futuristic AI Search Command Bar */}
       <Card className="p-4 space-y-3">
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
-            <I.Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <I.Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-obs-fg-faint" />
             <Input
-              className="pl-10 h-11 text-sm bg-[#060b13]/90 border-slate-700/80 focus:border-[#2fbfa4]"
-              placeholder="Search visual memory: “forklift carrying pallet near bay 2”, “person in dark jacket after midnight”..."
+              className="pl-10 h-11 text-sm bg-obs-1"
+              placeholder='Try “forklift carrying pallet near bay 2” or “person in dark jacket after midnight”'
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -125,23 +121,23 @@ export default function Explore() {
             {query && (
               <button
                 onClick={() => setQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-500 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-mono text-obs-fg-faint hover:text-obs-fg"
               >
-                CLEAR ✕
+                Clear
               </button>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={camera} onChange={(e) => setCamera(e.target.value)} className="w-40 h-11">
-              <option value="all">All 6 Cameras</option>
+            <Select value={camera} onChange={(e) => setCamera(e.target.value)} className="w-44 h-11">
+              <option value="all">All cameras</option>
               {cameras.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
             </Select>
-            <Select value={label} onChange={(e) => setLabel(e.target.value)} className="w-36 h-11">
-              <option value="all">All Labels</option>
+            <Select value={label} onChange={(e) => setLabel(e.target.value)} className="w-40 h-11">
+              <option value="all">All labels</option>
               {labels.map((l) => (
                 <option key={l} value={l}>
                   {l}
@@ -151,10 +147,9 @@ export default function Explore() {
           </div>
         </div>
 
-        {/* Prompt suggestions pills */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500">
-            Suggested Prompts:
+          <span className="text-[10px] font-mono uppercase tracking-wider text-obs-fg-faint">
+            Suggestions:
           </span>
           {PROMPT_SUGGESTIONS.map((p) => (
             <button
@@ -163,51 +158,44 @@ export default function Explore() {
                 setQuery(p);
                 setSimilarFrom(null);
               }}
-              className="rounded-lg border border-slate-800 bg-[#07111e] px-2.5 py-1 text-xs text-slate-400 transition hover:border-[#2fbfa4]/40 hover:text-[#38efcb] cursor-pointer"
+              className="rounded-md border border-obs-line bg-obs-1 px-2.5 py-1 text-xs text-obs-fg-dim transition hover:border-obs-accent/40 hover:text-obs-fg cursor-pointer"
             >
-              + {p}
+              {p}
             </button>
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between border-t border-slate-800/80 pt-3 gap-2">
+        <div className="flex flex-wrap items-center justify-between border-t border-obs-line pt-3 gap-2">
           <Segmented<SortType>
             value={type}
             onChange={setType}
             options={searchTypes.map((t) => ({ value: t.value, label: t.label }))}
           />
-          <span className="font-mono text-[11px] text-slate-500">
-            {fromApi ? "Connected to Vector Pipeline (512-dim)" : "Simulated Local Embedding Vectors"}
+          <span className="font-mono text-[11px] text-obs-fg-faint">
+            {fromApi ? "Connected to vector pipeline" : "Simulated embeddings"}
           </span>
         </div>
       </Card>
 
-      {/* Default Category Grid */}
       {showLanding ? (
         <div className="space-y-3">
-          <p className="text-xs font-mono uppercase tracking-wider text-slate-400">
-            Index Catalog by Detected Class
+          <p className="text-xs font-mono uppercase tracking-wider text-obs-fg-dim">
+            Index by detected class
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {(summary.length ? summary : mockSummary).map(({ label: lbl, count }) => (
               <Card
                 key={lbl}
-                className="cursor-pointer p-4 transition hover:border-[#2fbfa4]/60 hover:shadow-lg hover:shadow-[#2fbfa4]/10 group"
+                className="cursor-pointer p-4 transition hover:border-obs-accent/40 hover:bg-obs-3 group"
                 onClick={() => setLabel(lbl)}
               >
-                <div
-                  className="mb-3 h-16 rounded-lg relative overflow-hidden"
-                  style={{ background: `linear-gradient(135deg, #102a45, #081220)` }}
-                >
-                  <div className="absolute inset-0 hud-scanlines opacity-20" />
-                  <div className="absolute bottom-1.5 right-2 font-mono text-[10px] text-[#2fbfa4] font-bold">
-                    {count} CLIPS
-                  </div>
+                <div className="mb-3 h-16 overflow-hidden rounded-md border border-obs-line relative">
+                  <MockScene c1="#1c2833" c2="#141a20" />
                 </div>
-                <p className="text-sm font-bold capitalize text-white group-hover:text-[#38efcb] transition-colors">
+                <p className="text-sm font-medium capitalize text-obs-fg group-hover:text-obs-accent-strong transition-colors">
                   {lbl}
                 </p>
-                <p className="text-[11px] text-slate-400 font-mono mt-0.5">Filter by class →</p>
+                <p className="text-[11px] text-obs-fg-faint font-mono mt-0.5">{count} clips</p>
               </Card>
             ))}
           </div>
@@ -215,79 +203,74 @@ export default function Explore() {
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="font-mono text-xs text-slate-400">
+            <p className="font-mono text-xs text-obs-fg-dim">
               {similarFrom ? (
-                <span className="text-[#2fbfa4] font-bold">
-                  Finding visual vectors similar to #{similarFrom.embedding_id} ({similarFrom.label}) ·{" "}
+                <span className="text-obs-accent font-medium">
+                  Showing footage visually similar to #{similarFrom.embedding_id} ({similarFrom.label}) ·{" "}
                 </span>
               ) : null}
-              {results.length} Ranked visual vector match{results.length === 1 ? "" : "es"}
+              {results.length} result{results.length === 1 ? "" : "s"}
             </p>
             {similarFrom && (
               <Button size="xs" variant="ghost" onClick={() => setSimilarFrom(null)}>
-                Clear Similarity Pivot ✕
+                Clear pivot
               </Button>
             )}
           </div>
 
           {results.length === 0 ? (
             <EmptyState
-              title="No surveillance clips match your semantic query"
-              hint="Try broadening search terms or removing specific camera constraints."
+              title="No footage matches your search"
+              hint="Try broadening your terms or removing a camera filter."
             />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {results.map((r) => {
                 const cam = cameras.find((c) => c.id === r.camera);
                 return (
-                  <Card key={r.embedding_id} className="overflow-hidden group hover:border-[#2fbfa4]/50">
+                  <Card key={r.embedding_id} className="overflow-hidden group hover:border-obs-line-strong">
                     <button className="block w-full cursor-pointer text-left" onClick={() => setSelected(r)}>
-                      <div
-                        className="relative h-40 overflow-hidden"
-                        style={{
-                          background: r.thumbnail
-                            ? "#07111e"
-                            : cx(cam ? cam.palette : ["#0d2c46", "#0b1f3a"]),
-                        }}
-                      >
+                      <div className="relative h-40 overflow-hidden">
                         {r.thumbnail ? (
-                          <img src={r.thumbnail} alt={r.label} className="h-full w-full object-cover" />
+                          <img src={r.thumbnail} alt={r.label} className="absolute inset-0 h-full w-full object-cover" />
                         ) : (
                           <>
-                            <div className="absolute inset-0 hud-scanlines opacity-30" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/60" />
+                            <MockScene
+                              c1={cam ? cam.palette[0] : "#1d222a"}
+                              c2={cam ? cam.palette[1] : "#161a20"}
+                            />
+                            <div className="absolute left-[42%] top-[48%] h-[28%] w-[30%] rounded-sm border border-obs-accent" />
                           </>
                         )}
 
-                        {/* Badges */}
                         <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5 z-10">
-                          <Badge tone="teal">{r.label}</Badge>
+                          <Badge tone="accent">{r.label}</Badge>
                           {r.zone && <Badge tone="slate">{r.zone}</Badge>}
                         </div>
 
                         {r.similarity != null && (
-                          <div className="absolute right-2.5 top-2.5 rounded bg-black/70 px-2 py-0.5 font-mono text-[10px] font-bold text-[#38efcb] border border-[#2fbfa4]/30 backdrop-blur-sm z-10">
-                            {(r.similarity * 100).toFixed(0)}% MATCH
+                          <div className="absolute right-2.5 top-2.5 rounded bg-black/60 px-2 py-0.5 font-mono text-[10px] font-medium text-obs-accent-strong border border-obs-accent/30 backdrop-blur-sm z-10">
+                            {(r.similarity * 100).toFixed(0)}% match
                           </div>
                         )}
 
-                        <div className="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between text-xs text-white drop-shadow z-10">
-                          <span className="font-semibold">{cam?.name ?? r.camera}</span>
+                        <div className="absolute bottom-2 left-2.5 text-xs text-obs-fg drop-shadow z-10">
+                          <span className="font-medium">{cam?.name ?? r.camera}</span>
                         </div>
                       </div>
                     </button>
 
-                    <div className="p-3 flex items-center justify-between border-t border-slate-800/80">
-                      <div className="font-mono text-[11px] text-slate-400">
+                    <div className="p-3 flex items-center justify-between border-t border-obs-line">
+                      <div className="font-mono text-[11px] text-obs-fg-faint">
                         {r.captured_at ? timeAgo(r.captured_at * 1000) : "—"}
                       </div>
                       <Button
                         size="xs"
-                        variant="glow"
+                        variant="subtle"
                         onClick={() => setSimilarFrom(r)}
-                        title="Search for identical visual vectors"
+                        title="Find visually similar footage"
                       >
-                        <I.Crosshair className="h-3 w-3" /> Find Similar
+                        <I.Crosshair className="h-3 w-3" /> Similar
                       </Button>
                     </div>
                   </Card>
@@ -298,42 +281,40 @@ export default function Explore() {
         </div>
       )}
 
-      {/* High-Precision Semantic Detail Modal */}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Visual Vector Match Details">
+      <Modal open={!!selected} onClose={() => setSelected(null)} title="Search result">
         {selected && (
           <div className="space-y-4 p-5">
-            <div
-              className="relative h-64 overflow-hidden rounded-xl border border-slate-800"
-              style={{
-                background: selected.thumbnail
-                  ? "#07111e"
-                  : cx(cameras.find((c) => c.id === selected.camera)?.palette ?? ["#0d2c46", "#0b1f3a"]),
-              }}
-            >
-              <div className="absolute inset-0 hud-scanlines opacity-25" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50" />
+            <div className="relative h-64 overflow-hidden rounded-md border border-obs-line">
+              {selected.thumbnail ? (
+                <img src={selected.thumbnail} alt={selected.label} className="absolute inset-0 h-full w-full object-cover" />
+              ) : (
+                <MockScene
+                  c1={cameras.find((c) => c.id === selected.camera)?.palette[0] ?? "#1d222a"}
+                  c2={cameras.find((c) => c.id === selected.camera)?.palette[1] ?? "#161a20"}
+                />
+              )}
 
               <div className="absolute left-3 top-3 flex items-center gap-2">
-                <Badge tone="teal" dot={true}>
+                <Badge tone="accent" dot>
                   {selected.label}
                 </Badge>
-                <Badge tone={selected.zone ? "amber" : "slate"}>
-                  {selected.zone ?? "No Zone Assigned"}
+                <Badge tone={selected.zone ? "warn" : "slate"}>
+                  {selected.zone ?? "No zone"}
                 </Badge>
               </div>
 
               {selected.captured_at && (
-                <div className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2.5 py-1 font-mono text-xs text-slate-300 backdrop-blur-md border border-white/5">
-                  CAPTURED: {new Date(selected.captured_at * 1000).toLocaleString()}
+                <div className="absolute bottom-3 left-3 rounded bg-black/55 px-2.5 py-1 font-mono text-xs text-obs-fg-dim backdrop-blur-sm z-10">
+                  {new Date(selected.captured_at * 1000).toLocaleString()}
                 </div>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3">
-              <div className="font-mono text-xs text-slate-400">
-                <span>Camera: <strong className="text-white">{camName(selected.camera)}</strong></span>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-obs-line pt-3">
+              <div className="font-mono text-xs text-obs-fg-dim">
+                <span>Camera: <strong className="text-obs-fg">{camName(selected.camera)}</strong></span>
                 <span className="mx-2">·</span>
-                <span>Cosine Distance: <strong className="text-[#2fbfa4]">{selected.similarity != null ? (selected.similarity * 100).toFixed(1) : "—"}%</strong></span>
+                <span>Similarity: <strong className="text-obs-accent-strong">{selected.similarity != null ? (selected.similarity * 100).toFixed(1) : "—"}%</strong></span>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -344,7 +325,7 @@ export default function Explore() {
                     setSelected(null);
                   }}
                 >
-                  Cascade Similar Vectors
+                  Find similar
                 </Button>
                 <Button size="sm" variant="solid" onClick={() => setSelected(null)}>
                   Done

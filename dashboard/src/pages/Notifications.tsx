@@ -28,46 +28,43 @@ export default function Notifications() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Alert Dispatch & Web-Push Triggers"
-        subtitle="Edge orchestrator dispatches web-push & webhook notifications whenever an incoming review segment matches active scope rules"
+        title="Alerts"
+        subtitle="Configure which review segments trigger web-push and webhook notifications"
         badge={
-          <Badge tone="teal" dot={true}>
-            VAPID WEB-PUSH READY
+          <Badge tone="ok" dot>
+            push enabled
           </Badge>
         }
         actions={
           <Button variant="solid" size="sm" onClick={handleTestDispatch}>
             <I.BellOn className="h-4 w-4" />
-            {testSent ? "Test Alert Fired ✓" : "Test Push Dispatch"}
+            {testSent ? "Test sent" : "Send test"}
           </Button>
         }
       />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-        {/* Scopes Table */}
         <Card className="overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-800/80 px-5 py-3.5 bg-[#081220]/90">
+          <div className="flex items-center justify-between border-b border-obs-line px-5 py-3.5">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
-                Active Notification Scopes
-              </p>
-              <p className="text-[10px] text-slate-500 font-mono">Camera-level trigger bindings</p>
+              <p className="text-xs font-semibold text-obs-fg">Notification scopes</p>
+              <p className="text-[11px] text-obs-fg-faint">Camera-level trigger bindings</p>
             </div>
-            <Badge tone="cyan">{scopes.filter((s) => s.enabled).length} Enabled</Badge>
+            <Badge tone="accent">{scopes.filter((s) => s.enabled).length} enabled</Badge>
           </div>
 
-          <div className="divide-y divide-slate-800/60">
+          <div className="divide-y divide-obs-line">
             {scopes.map((s) => {
               const cam = cameras.find((c) => c.id === s.camera);
               return (
-                <div key={s.id} className="flex items-center justify-between px-5 py-3.5 transition hover:bg-[#0c1829]/50">
+                <div key={s.id} className="flex items-center justify-between px-5 py-3.5 transition hover:bg-obs-1">
                   <div className="flex items-center gap-3">
-                    <Badge tone={s.kind === "alert" ? "red" : "teal"} dot={s.kind === "alert"}>
+                    <Badge tone={s.kind === "alert" ? "alert" : "ok"} dot={s.kind === "alert"}>
                       {s.kind}
                     </Badge>
                     <div>
-                      <p className="text-xs font-bold text-[#f0f6fc]">{s.label}</p>
-                      <p className="text-[11px] font-mono text-slate-400 mt-0.5">Assigned to: {cam?.name}</p>
+                      <p className="text-sm text-obs-fg">{s.label}</p>
+                      <p className="mt-0.5 text-[11px] font-mono text-obs-fg-faint">Assigned to: {cam?.name}</p>
                     </div>
                   </div>
                   <Toggle checked={s.enabled} onChange={() => toggle(s.id)} label={`toggle ${s.label}`} />
@@ -77,43 +74,39 @@ export default function Notifications() {
           </div>
         </Card>
 
-        {/* Sidebar: Delivery Channels & Recent Log */}
         <div className="space-y-4">
           <Card className="p-4 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-              Push Delivery Channel
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-obs-fg-dim">
+              Delivery channel
             </p>
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+            <div className="flex items-center justify-between border-b border-obs-line pb-3">
               <div>
-                <span className="text-xs font-semibold text-slate-200">Browser Web-Push (VAPID)</span>
-                <p className="text-[10px] text-slate-400">Desktop and mobile notification alerts</p>
+                <span className="text-sm font-medium text-obs-fg">Browser web-push</span>
+                <p className="mt-0.5 text-[11px] text-obs-fg-faint">Desktop and mobile notifications</p>
               </div>
               <Toggle checked={push} onChange={setPush} label="browser push" />
             </div>
-            <p className="text-[11px] leading-relaxed text-slate-500 font-mono">
-              Subscriptions registered per client browser; dispatches only for segments matching an enabled scope.
+            <p className="text-[11px] leading-relaxed text-obs-fg-faint font-mono">
+              Subscriptions register per browser; dispatches only for segments matching an enabled scope.
             </p>
           </Card>
 
           <Card className="p-4 space-y-3">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-              Recent Dispatched Alerts
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-obs-fg-dim">
+              Recently dispatched
             </p>
             <div className="space-y-2">
               {[
-                { t: "2m ago", m: "Loitering alert in dock_entry", cam: "Loading Dock", tone: "red" as const },
-                { t: "41m ago", m: "Face detected at doorway", cam: "Lobby Entrance", tone: "teal" as const },
-                { t: "3h ago", m: "Vehicle arrived at dock_bay", cam: "Loading Dock", tone: "amber" as const },
+                { t: "2m ago", m: "Loitering alert in dock_entry", cam: "Loading Dock", tone: "alert" as const },
+                { t: "41m ago", m: "Face detected at doorway", cam: "Lobby Entrance", tone: "ok" as const },
+                { t: "3h ago", m: "Vehicle arrived at dock_bay", cam: "Loading Dock", tone: "warn" as const },
               ].map((n, i) => (
-                <div
-                  key={i}
-                  className="rounded-lg border border-slate-800 bg-[#07111e] p-2.5 transition hover:border-slate-700"
-                >
+                <div key={i} className="rounded-md border border-obs-line bg-obs-1 p-2.5 transition hover:border-obs-line-strong">
                   <div className="flex items-center justify-between">
                     <Badge tone={n.tone}>{n.cam}</Badge>
-                    <span className="font-mono text-[10px] text-slate-500">{n.t}</span>
+                    <span className="font-mono text-[10px] text-obs-fg-faint">{n.t}</span>
                   </div>
-                  <p className="mt-1.5 text-xs text-slate-200">{n.m}</p>
+                  <p className="mt-1.5 text-xs text-obs-fg">{n.m}</p>
                 </div>
               ))}
             </div>

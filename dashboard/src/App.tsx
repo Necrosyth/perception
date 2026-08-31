@@ -11,6 +11,8 @@ import Zones from "./pages/Zones";
 import System from "./pages/System";
 import Notifications from "./pages/Notifications";
 import Settings from "./pages/Settings";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
         <Route path="system" element={<System />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="terms" element={<Terms />} />
+        <Route path="privacy" element={<Privacy />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -6,9 +6,11 @@ import { cameras } from "../lib/mock";
 type Zone = { name: string; color: string; points: [number, number][]; rules?: string };
 
 const ZONES: Zone[] = [
-  { name: "dock_entry", color: "#2FBFA4", points: [[8, 30], [45, 26], [52, 74], [10, 78]], rules: "Intrusion + Loitering" },
-  { name: "dock_bay", color: "#E8A33D", points: [[52, 44], [92, 40], [94, 86], [52, 86]], rules: "Vehicle Dwell" },
+  { name: "dock_entry", color: "#C2A878", points: [[8, 30], [45, 26], [52, 74], [10, 78]], rules: "Intrusion + Loitering" },
+  { name: "dock_bay", color: "#D3A05F", points: [[52, 44], [92, 40], [94, 86], [52, 86]], rules: "Vehicle Dwell" },
 ];
+
+const ZONE_COLORS = ["#C2A878", "#8AA3AD", "#D3A05F", "#C06F66", "#8FAE8D"];
 
 export default function Zones() {
   const [camera, setCamera] = useState("loading_dock");
@@ -16,7 +18,7 @@ export default function Zones() {
   const [zones, setZones] = useState<Zone[]>(ZONES);
   const [draft, setDraft] = useState<[number, number][]>([]);
   const [draftName, setDraftName] = useState("");
-  const [draftColor, setDraftColor] = useState("#00E5FF");
+  const [draftColor, setDraftColor] = useState("#8AA3AD");
   const [mode, setMode] = useState<"view" | "draw">("view");
   const [hover, setHover] = useState<[number, number] | null>(null);
 
@@ -34,16 +36,16 @@ export default function Zones() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Zone Matrix & Geometric Polygon Editor"
-        subtitle="Draw boundary coordinates per camera to trigger behavioral states (entered_zone, stationary, loitering)"
+        title="Zones"
+        subtitle="Define boundary polygons per camera to trigger behavioral states"
         badge={
-          <Badge tone="teal" dot={true}>
-            PERSISTED TO AINA.YAML
+          <Badge tone="ok" dot>
+            persisted
           </Badge>
         }
         actions={
           <div className="flex items-center gap-2">
-            <Select value={camera} onChange={(e) => setCamera(e.target.value)} className="w-48">
+            <Select value={camera} onChange={(e) => setCamera(e.target.value)} className="w-52">
               {cameras.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -59,16 +61,15 @@ export default function Zones() {
               }}
             >
               <I.Zone className="h-4 w-4" />
-              {mode === "draw" ? "Cancel Drawing" : "Draw New Zone"}
+              {mode === "draw" ? "Cancel drawing" : "Draw new zone"}
             </Button>
           </div>
         }
       />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-        {/* Tactical Polygon Canvas */}
-        <Card className="relative overflow-hidden p-1 border-slate-800 bg-[#07111e]">
-          <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
+        <Card className="relative overflow-hidden p-1 border-obs-line bg-obs-1">
+          <div className="relative aspect-video overflow-hidden rounded bg-black">
             <svg
               viewBox="0 0 320 180"
               className={`block w-full h-full ${mode === "draw" ? "cursor-crosshair" : "cursor-default"}`}
@@ -89,82 +90,84 @@ export default function Zones() {
               }}
             >
               <defs>
-                <linearGradient id="zonebg" x1="0" x2="1" y1="0" y2="1">
-                  <stop offset="0" stopColor={cam.palette[0]} />
-                  <stop offset="1" stopColor={cam.palette[1]} />
-                </linearGradient>
-                <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
-                </pattern>
+                <radialGradient id="zlight" cx="0.7" cy="0.18" r="0.75">
+                  <stop offset="0" stopColor="#ffffff" stopOpacity="0.10" />
+                  <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+                </radialGradient>
+                <radialGradient id="zvignette" cx="0.5" cy="0.45" r="0.8">
+                  <stop offset="0.7" stopColor="#000000" stopOpacity="0" />
+                  <stop offset="1" stopColor="#000000" stopOpacity="0.55" />
+                </radialGradient>
               </defs>
 
-              <rect width="320" height="180" fill="url(#zonebg)" />
-              <rect width="320" height="180" fill="url(#grid)" />
-
-              {/* Viewfinder guidelines */}
-              <line x1="50" y1="0" x2="50" y2="180" stroke="#ffffff" strokeOpacity="0.08" strokeWidth="1" strokeDasharray="3 3" />
-              <line x1="0" y1="75" x2="320" y2="75" stroke="#ffffff" strokeOpacity="0.08" strokeWidth="1" strokeDasharray="3 3" />
-              <circle cx="160" cy="90" r="30" fill="none" stroke="#2fbfa4" strokeOpacity="0.12" strokeWidth="1" />
+              {/* wall tone */}
+              <rect width="320" height="180" fill="#161c25" />
+              {/* floor plane (darker, set off by a seam) */}
+              <rect y="72" width="320" height="180" fill="#0f141b" />
+              <rect y="72" width="320" height="1" fill="#ffffff" opacity="0.07" />
+              {/* incidental structure + light pool + vignette */}
+              <rect x="52" y="0" width="1.5" height="180" fill="#ffffff" opacity="0.03" />
+              <rect x="238" y="0" width="1.5" height="180" fill="#ffffff" opacity="0.03" />
+              <rect width="320" height="180" fill="url(#zlight)" />
+              <rect width="320" height="180" fill="url(#zvignette)" />
 
               {/* Render existing zones */}
               {zones.map((z) => (
-                <g key={z.name} className="transition-all">
+                <g key={z.name}>
                   <polygon
                     points={z.points.map((p) => p.join(",")).join(" ")}
                     fill={z.color}
-                    fillOpacity="0.18"
+                    fillOpacity="0.16"
                     stroke={z.color}
-                    strokeWidth="1.75"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
                   />
                   {z.points.map((p, i) => (
                     <circle key={i} cx={p[0]} cy={p[1]} r="2" fill={z.color} />
                   ))}
                   <text
-                    x={z.points[0][0] + 4}
-                    y={z.points[0][1] - 4}
+                    x={z.points[0][0] + 5}
+                    y={z.points[0][1] - 5}
                     fontSize="7"
-                    fill="#ffffff"
-                    fontWeight="bold"
-                    className="font-mono drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]"
+                    fill="#ece7dd"
+                    fontWeight="500"
+                    className="font-mono"
                   >
                     {z.name.toUpperCase()}
                   </text>
                 </g>
               ))}
 
-              {/* Render draft polygon */}
+              {/* Draft polygon */}
               {draft.length > 0 && (
                 <>
                   <polygon
                     points={draft.map((p) => p.join(",")).join(" ")}
                     fill={draftColor}
-                    fillOpacity="0.25"
+                    fillOpacity="0.22"
                     stroke={draftColor}
-                    strokeWidth="1.8"
+                    strokeWidth="1.6"
                     strokeDasharray="4 3"
+                    strokeLinejoin="round"
                   />
                   {draft.map((p, i) => (
-                    <circle key={i} cx={p[0]} cy={p[1]} r="3" fill={draftColor} stroke="#ffffff" strokeWidth="0.8" />
+                    <circle key={i} cx={p[0]} cy={p[1]} r="3" fill={draftColor} stroke="#0c0e11" strokeWidth="0.8" />
                   ))}
                 </>
               )}
 
-              {/* Cursor crosshair indicator */}
+              {/* Cursor indicator */}
               {mode === "draw" && hover && (
-                <g>
-                  <circle cx={hover[0]} cy={hover[1]} r="3" fill="none" stroke="#00e5ff" strokeWidth="1" />
-                  <circle cx={hover[0]} cy={hover[1]} r="1" fill="#00e5ff" />
-                </g>
+                <circle cx={hover[0]} cy={hover[1]} r="3" fill="none" stroke="#8aa3ad" strokeWidth="1" />
               )}
             </svg>
 
-            {/* Overlaid status tags */}
             <div className="absolute left-3 top-3 flex items-center gap-2">
-              <Badge tone="navy" className="backdrop-blur-md bg-black/60">
+              <Badge tone="neutral" className="bg-black/50">
                 {cam.name}
               </Badge>
               {hover && mode === "draw" && (
-                <span className="rounded bg-black/70 px-2 py-0.5 font-mono text-[10px] text-[#00e5ff] backdrop-blur-md border border-white/10">
+                <span className="rounded bg-black/60 px-2 py-0.5 font-mono text-[10px] text-obs-info backdrop-blur-sm">
                   X: {hover[0]} · Y: {hover[1]}
                 </span>
               )}
@@ -172,60 +175,59 @@ export default function Zones() {
 
             {mode === "draw" && (
               <div className="absolute right-3 top-3">
-                <Badge tone="amber" dot={true}>
-                  {draft.length} Vertex Points Placed (Click to add)
+                <Badge tone="warn" dot>
+                  {draft.length} vertex points
                 </Badge>
               </div>
             )}
           </div>
         </Card>
 
-        {/* Sidebar: Active Zones List and Draw Form */}
         <div className="space-y-4">
           <Card className="p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
-                Defined Zones on Feed
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-obs-fg-dim">
+                Defined zones
               </p>
-              <Badge tone="slate">{zones.length} Active</Badge>
+              <Badge tone="slate">{zones.length} active</Badge>
             </div>
 
             <div className="space-y-2">
               {zones.map((z) => (
                 <div
                   key={z.name}
-                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-[#07111e] p-3 transition hover:border-slate-700"
+                  className="flex items-center justify-between rounded-md border border-obs-line bg-obs-1 p-3 transition hover:border-obs-line-strong"
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="h-3 w-3 rounded-full shadow-[0_0_8px]" style={{ background: z.color, boxShadow: `0 0 8px ${z.color}` }} />
+                    <span className="h-3 w-3 rounded-full" style={{ background: z.color }} />
                     <div>
-                      <p className="text-xs font-bold text-white font-mono">{z.name}</p>
-                      <p className="text-[10px] text-slate-500 font-mono">{z.points.length} vertices · {z.rules}</p>
+                      <p className="text-xs font-medium text-obs-fg font-mono">{z.name}</p>
+                      <p className="text-[10px] text-obs-fg-faint font-mono">{z.points.length} vertices · {z.rules}</p>
                     </div>
                   </div>
                   <Button
                     size="xs"
                     variant="ghost"
-                    className="text-red-400 hover:text-red-300"
+                    className="text-obs-alert hover:text-obs-alert"
                     onClick={() => setZones((zs) => zs.filter((x) => x !== z))}
                   >
                     Delete
                   </Button>
                 </div>
               ))}
-              {zones.length === 0 && <p className="text-xs text-slate-500">No zones defined yet.</p>}
+              {zones.length === 0 && <p className="text-xs text-obs-fg-faint">No zones defined yet.</p>}
             </div>
           </Card>
 
           {mode === "draw" && (
-            <Card className="p-4 space-y-3 border-[#2fbfa4]/40 bg-[#0c1a2e]/90 shadow-xl shadow-black/50 animate-in fade-in">
+            <Card className="p-4 space-y-3 border-obs-accent/30 bg-obs-2 obs-rise">
               <div>
-                <p className="text-xs font-bold text-[#38efcb] font-display">New Zone Configuration</p>
-                <p className="text-[11px] text-slate-400">Add at least 3 points on the video viewport</p>
+                <p className="text-sm font-medium text-obs-fg">New zone</p>
+                <p className="text-[11px] text-obs-fg-dim">Add at least 3 points on the viewport</p>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Zone Unique Identifier</label>
+                <label className="text-sm text-obs-fg-dim">Identifier</label>
                 <Input
                   placeholder="e.g. dock_perimeter_north"
                   value={draftName}
@@ -234,15 +236,15 @@ export default function Zones() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-300">Zone Boundary Color</label>
+                <label className="text-sm text-obs-fg-dim">Boundary color</label>
                 <div className="flex items-center gap-2">
-                  {["#2FBFA4", "#00E5FF", "#E8A33D", "#EF4444", "#8B5CF6"].map((c) => (
+                  {ZONE_COLORS.map((c) => (
                     <button
                       key={c}
                       type="button"
                       onClick={() => setDraftColor(c)}
-                      className={`h-7 w-7 rounded-lg border transition-all ${
-                        draftColor === c ? "border-white scale-110 shadow-[0_0_10px_white]" : "border-transparent opacity-60"
+                      className={`h-7 w-7 rounded-md border transition-all ${
+                        draftColor === c ? "border-white scale-110" : "border-transparent opacity-60 hover:opacity-100"
                       }`}
                       style={{ background: c }}
                     />
@@ -250,7 +252,7 @@ export default function Zones() {
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center gap-2">
+              <div className="pt-1 flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="solid"
@@ -258,7 +260,7 @@ export default function Zones() {
                   disabled={draft.length < 3 || !draftName.trim()}
                   onClick={saveDraft}
                 >
-                  Save Zone Polygon
+                  Save polygon
                 </Button>
               </div>
             </Card>

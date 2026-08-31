@@ -1,26 +1,33 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Badge, Button, Card, PageHeader } from "../components/ui";
+import { Badge, Button, Card, MetricCard, PageHeader } from "../components/ui";
 import { VideoTile } from "../components/VideoTile";
 import { cameras } from "../lib/mock";
 import { I } from "../components/icons";
+import { timeHHMMSS } from "../lib/utils";
 
-const layouts = ["2x2", "3x3", "Composite"] as const;
+const layouts = ["2x2", "3x3"] as const;
 
 export default function Birdseye() {
   const [layout, setLayout] = useState<(typeof layouts)[number]>("2x2");
   const [follow, setFollow] = useState(false);
-  const pool = cameras.filter((c) => c.enabled);
+  const pool = useMemo(() => cameras.filter((c) => c.enabled), []);
   const shown = layout === "2x2" ? pool.slice(0, 4) : pool;
+  const motionCount = pool.filter((c) => c.hasMotion).length;
+  const avgFps = pool.length ? (pool.reduce((a, c) => a + c.fps, 0) / pool.length).toFixed(1) : "—";
+  const totalBitrate = pool.reduce((a, c) => {
+    const mb = parseFloat(c.bitrate.replace(" Mbps", ""));
+    return a + (isNaN(mb) ? 0 : mb);
+  }, 0).toFixed(1);
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Birds Eye Tactical Composite"
-        subtitle="Hardware-accelerated multi-camera restream matrix via go2rtc proxy"
+        title="Bird's Eye"
+        subtitle="Multi-camera composite view spanning the facility"
         badge={
-          <Badge tone="cyan" dot={true}>
-            RADAR MATRIX ACTIVE
+          <Badge tone="ok" dot>
+            composite active
           </Badge>
         }
         actions={
@@ -28,7 +35,7 @@ export default function Birdseye() {
             {layouts.map((l) => (
               <Button
                 key={l}
-                variant={layout === l ? "glow" : "outline"}
+                variant={layout === l ? "subtle" : "outline"}
                 size="sm"
                 onClick={() => setLayout(l)}
               >
@@ -39,33 +46,40 @@ export default function Birdseye() {
               variant={follow ? "solid" : "outline"}
               size="sm"
               onClick={() => setFollow((v) => !v)}
-              title="PTZ auto-track active objects"
+              title="Auto-track active objects"
             >
               <I.Crosshair className="h-3.5 w-3.5" />
-              Auto-Track {follow ? "Engaged" : "Standby"}
+              Auto-track {follow ? "on" : "off"}
             </Button>
           </div>
         }
       />
 
-      {/* Tactical Container */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-b from-[#0a1526] to-[#060b13] p-4 shadow-2xl">
-        {/* Radar Center HUD Marker */}
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-10">
-          <div className="flex items-center gap-2 rounded-full border border-[#2fbfa4]/30 bg-[#060b13]/85 px-4 py-1.5 backdrop-blur-md shadow-[0_0_20px_rgba(47,191,164,0.2)]">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00e5ff] opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00e5ff]" />
-            </span>
-            <span className="font-mono text-xs font-bold tracking-widest text-[#38efff]">
-              TACTICAL BIRDSEYE COMPOSITE
-            </span>
-          </div>
-        </div>
+      {/* Composite status strip */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard title="Cameras on matrix" value={shown.length > 0 ? `${shown.length}/${pool.length}` : "0"} unit="feeds" subtitle="Enabled cameras in composite" tone="ok" />
+        <MetricCard title="Active motion" value={motionCount} unit="zones" subtitle="Regions with recent activity" tone={motionCount > 0 ? "warn" : "ok"} />
+        <MetricCard title="Composite ingest" value={avgFps} unit="FPS" subtitle="Mean stream rate across matrix" tone="accent" />
+        <MetricCard title="Total bandwidth" value={`${totalBitrate} Mbps`} unit="client-side" subtitle="Single multiplexed connection" tone="accent" />
+      </div>
 
-        {/* Video Grid */}
+      {/* Composite matrix */}
+      <Card className="p-3">
+        <div className="mb-2 flex items-center justify-between px-1">
+          <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-obs-fg-faint">
+            {layout} matrix · {timeHHMMSS(Date.now())}
+          </span>
+          <span className="flex items-center gap-2 font-mono text-[10px] text-obs-fg-dim">
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-obs-ok" /> sync
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-obs-warn" /> motion
+            </span>
+          </span>
+        </div>
         <div
-          className={`grid gap-3 ${
+          className={`grid gap-2.5 rounded bg-obs-0/70 p-2 ${
             shown.length <= 4
               ? "grid-cols-1 sm:grid-cols-2"
               : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
@@ -87,18 +101,24 @@ export default function Birdseye() {
             />
           ))}
         </div>
-      </div>
+      </Card>
 
-      {/* Info Card */}
-      <Card className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-slate-400">
-        <div className="flex items-center gap-2">
-          <I.Gauge className="h-4 w-4 text-[#2fbfa4]" />
-          <span>
-            Single multiplexed WebRTC connection saves 75% client CPU & bandwidth overhead.
+      {/* Footer band */}
+      <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-obs-fg-dim">
+          <span className="flex items-center gap-2">
+            <I.Gauge className="h-4 w-4 text-obs-accent" />
+            Multiplexed transport keeps client bandwidth flat while viewing multiple feeds.
+          </span>
+          <span className="font-mono text-[10px] text-obs-fg-faint">
+            {follow ? "tracking active objects" : "static composite · no auto-track"}
           </span>
         </div>
-        <Link to="/" className="text-[#2fbfa4] hover:underline font-semibold flex items-center gap-1">
-          Back to Live Grid →
+        <Link
+          to="/"
+          className="flex shrink-0 items-center gap-1 font-medium text-obs-accent transition-colors hover:text-obs-accent-strong"
+        >
+          Back to Live View
         </Link>
       </Card>
     </div>

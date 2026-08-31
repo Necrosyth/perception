@@ -9,31 +9,25 @@ function CircularGauge({ pct, label, sub }: { pct: number; label: string; sub?: 
     <div className="flex items-center gap-4">
       <div className="relative h-20 w-20 shrink-0">
         <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
-          <circle cx="40" cy="40" r="35" fill="none" stroke="#0e1d30" strokeWidth="7" />
+          <circle cx="40" cy="40" r="35" fill="none" stroke="#242a34" strokeWidth="6" />
           <circle
             cx="40"
             cy="40"
             r="35"
             fill="none"
-            stroke="url(#gauge-grad)"
-            strokeWidth="7"
+            stroke="#c2a878"
+            strokeWidth="6"
             strokeLinecap="round"
             strokeDasharray={`${strokeDash} 220`}
           />
-          <defs>
-            <linearGradient id="gauge-grad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#2FBFA4" />
-              <stop offset="100%" stopColor="#00E5FF" />
-            </linearGradient>
-          </defs>
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center font-mono text-sm font-bold text-white">
+        <span className="absolute inset-0 flex items-center justify-center font-mono text-sm font-medium text-obs-fg">
           {pct}%
         </span>
       </div>
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">{label}</p>
-        {sub && <p className="mt-0.5 text-xs font-semibold text-white">{sub}</p>}
+        <p className="font-mono text-[10px] font-semibold uppercase tracking-wider text-obs-fg-dim">{label}</p>
+        {sub && <p className="mt-0.5 text-xs font-medium text-obs-fg">{sub}</p>}
       </div>
     </div>
   );
@@ -59,91 +53,86 @@ export default function System() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="System Health & Hardware Telemetry"
-        subtitle="Edge inference pipelines, CUDA GPU utilization, active cameras, and perception module states"
+        title="System"
+        subtitle="Edge inference pipelines, GPU utilization, camera streams, and perception modules"
         badge={
-          <Badge tone="teal" dot={true}>
-            EDGE ACCELERATION ACTIVE
+          <Badge tone="ok" dot>
+            on-device inference
           </Badge>
         }
       />
 
-      {/* Hardware Telemetry KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="p-4 flex items-center">
+        <Card className="p-5 flex items-center">
           <CircularGauge
             pct={gpu.util}
-            label="GPU Compute Load"
+            label="GPU load"
             sub={`${gpu.temperature}°C · ${gpu.name.split("(")[0]}`}
           />
         </Card>
 
         <MetricCard
-          title="TensorRT Detector"
+          title="Detector"
           value={systemStats.detector.fps.toFixed(1)}
           unit="FPS"
           subtitle={`Latency ${systemStats.detector.inferenceMs}ms · Load ${systemStats.detector.load}%`}
-          tone="teal"
-          icon={<I.Cpu className="h-4 w-4 text-[#2fbfa4]" />}
+          tone="accent"
+          icon={<I.Cpu className="h-4 w-4 text-obs-accent" />}
         />
 
         <MetricCard
-          title="VRAM Allocation"
+          title="VRAM"
           value={gpu.memUsed}
           unit={`/ ${gpu.memTotal} MiB`}
-          subtitle="CUDA Memory Pool · sm_89 cache"
-          tone="cyan"
-          icon={<I.Layers className="h-4 w-4 text-[#00e5ff]" />}
+          subtitle="CUDA memory pool"
+          tone="ok"
+          icon={<I.Layers className="h-4 w-4 text-obs-ok" />}
         />
 
         <MetricCard
-          title="Edge Runtime Engine"
+          title="Runtime"
           value={systemStats.uptime}
-          unit="Uptime"
-          subtitle={`v${systemStats.version} · Containerized Microservices`}
-          tone="amber"
-          icon={<I.Gauge className="h-4 w-4 text-amber-400" />}
+          unit="uptime"
+          subtitle={`v${systemStats.version}`}
+          tone="warn"
+          icon={<I.Gauge className="h-4 w-4 text-obs-warn" />}
         />
       </div>
 
-      {/* Detailed Tables Grid */}
       <div className="grid gap-5 lg:grid-cols-2">
-        {/* Cameras Hardware Table */}
         <Card className="overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-800/80 px-5 py-3.5 bg-[#081220]/90">
+          <div className="flex items-center justify-between border-b border-obs-line px-5 py-3.5">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
-                Camera Stream Ingest
-              </p>
-              <p className="text-[10px] text-slate-500 font-mono">RTSP / WebRTC endpoints status</p>
+              <p className="text-xs font-semibold text-obs-fg">Camera Streams</p>
+              <p className="text-[11px] text-obs-fg-faint">RTSP / WebRTC endpoints</p>
             </div>
-            <Badge tone="slate">{cams.filter((c) => c.enabled).length} Active Feeds</Badge>
+            <Badge tone="neutral">{cams.filter((c) => c.enabled).length} active</Badge>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-800/80 text-left font-mono text-[10px] uppercase tracking-wider text-slate-400">
-                  <th className="px-5 py-3 font-semibold">Camera Feeds</th>
-                  <th className="px-3 py-3 font-semibold">FPS</th>
-                  <th className="px-3 py-3 font-semibold">Motion</th>
-                  <th className="px-5 py-3 font-semibold text-right">Stream State</th>
+                <tr className="border-b border-obs-line text-left font-mono text-[10px] uppercase tracking-wider text-obs-fg-faint">
+                  <th className="px-5 py-3 font-medium">Feed</th>
+                  <th className="px-3 py-3 font-medium">FPS</th>
+                  <th className="px-3 py-3 font-medium">Motion</th>
+                  <th className="px-5 py-3 font-medium text-right">Stream</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-obs-line">
                 {cams.map((c) => (
-                  <tr key={c.id} className="transition hover:bg-[#0c1829]/50">
-                    <td className="px-5 py-3 text-[#f0f6fc] font-sans font-medium">{c.name}</td>
-                    <td className="px-3 py-3 text-slate-300">
+                  <tr key={c.id} className="transition hover:bg-obs-1">
+                    <td className="px-5 py-3 text-obs-fg font-medium">{c.name}</td>
+                    <td className="px-3 py-3 text-obs-fg-dim">
                       {c.enabled ? (
-                        <span className="text-[#2fbfa4] font-bold">{c.fps.toFixed(1)} FPS</span>
+                        <span className="text-obs-ok font-medium">{c.fps.toFixed(1)} FPS</span>
                       ) : (
-                        <span className="text-slate-600">—</span>
+                        <span className="text-obs-fg-faint">—</span>
                       )}
                     </td>
                     <td className="px-3 py-3">
-                      <Badge tone={c.hasMotion ? "amber" : "slate"} dot={c.hasMotion}>
-                        {c.hasMotion ? "Active" : "Idle"}
+                      <Badge tone={c.hasMotion ? "warn" : "slate"} dot={c.hasMotion}>
+                        {c.hasMotion ? "active" : "idle"}
                       </Badge>
                     </td>
                     <td className="px-5 py-3 text-right">
@@ -156,40 +145,34 @@ export default function System() {
           </div>
         </Card>
 
-        {/* Perception Modules Table */}
         <Card className="overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-800/80 px-5 py-3.5 bg-[#081220]/90">
+          <div className="flex items-center justify-between border-b border-obs-line px-5 py-3.5">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
-                Perception AI Modules
-              </p>
-              <p className="text-[10px] text-slate-500 font-mono">Bound from config/aina.yaml</p>
+              <p className="text-xs font-semibold text-obs-fg">Perception Modules</p>
+              <p className="text-[11px] text-obs-fg-faint">Detection, tracking, and search pipelines</p>
             </div>
-            <Badge tone="cyan">YOLO + CLIP</Badge>
+            <Badge tone="accent">YOLO + CLIP</Badge>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-slate-800/80 text-left font-mono text-[10px] uppercase tracking-wider text-slate-400">
-                  <th className="px-5 py-3 font-semibold">Module</th>
-                  <th className="px-3 py-3 font-semibold">Config Key</th>
-                  <th className="px-3 py-3 font-semibold">Rate</th>
-                  <th className="px-5 py-3 font-semibold text-right">State</th>
+                <tr className="border-b border-obs-line text-left font-mono text-[10px] uppercase tracking-wider text-obs-fg-faint">
+                  <th className="px-5 py-3 font-medium">Module</th>
+                  <th className="px-3 py-3 font-medium">Config</th>
+                  <th className="px-3 py-3 font-medium">Rate</th>
+                  <th className="px-5 py-3 font-medium text-right">State</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
+              <tbody className="divide-y divide-obs-line">
                 {mods.map((m) => (
-                  <tr key={m.name} className="transition hover:bg-[#0c1829]/50">
-                    <td className="px-5 py-3 text-[#f0f6fc] font-bold">{m.name}</td>
-                    <td className="px-3 py-3 text-slate-400 truncate max-w-[140px]">{m.key}</td>
-                    <td className="px-3 py-3 text-slate-300">{m.fps ? `${m.fps} FPS` : "Async"}</td>
+                  <tr key={m.name} className="transition hover:bg-obs-1">
+                    <td className="px-5 py-3 text-obs-fg font-medium">{m.name}</td>
+                    <td className="px-3 py-3 text-obs-fg-dim truncate max-w-[150px]">{m.key}</td>
+                    <td className="px-3 py-3 text-obs-fg-dim">{m.fps ? `${m.fps} FPS` : "async"}</td>
                     <td className="px-5 py-3 text-right">
-                      <button
-                        onClick={() => toggleMod(m.name)}
-                        className="cursor-pointer select-none"
-                      >
-                        <Badge tone={m.enabled ? "teal" : "slate"} dot={m.enabled}>
+                      <button onClick={() => toggleMod(m.name)} className="cursor-pointer select-none">
+                        <Badge tone={m.enabled ? "ok" : "slate"} dot={m.enabled}>
                           {m.enabled ? "ACTIVE" : "DISABLED"}
                         </Badge>
                       </button>
@@ -199,8 +182,8 @@ export default function System() {
               </tbody>
             </table>
           </div>
-          <div className="border-t border-slate-800/80 bg-[#060b13]/60 px-5 py-2.5 text-[10px] font-mono text-slate-500">
-            Runtime engines reload dynamically on parameter adjustment without restarting RTSP streams.
+          <div className="border-t border-obs-line bg-obs-1 px-5 py-2.5 text-[11px] text-obs-fg-faint font-mono">
+            Modules reload dynamically without restarting RTSP streams.
           </div>
         </Card>
       </div>

@@ -149,11 +149,6 @@ export const I = {
       <circle cx="12" cy="13" r="3" />
     </svg>
   ),
-  Sparkles: (p: P) => (
-    <svg {...base} {...p}>
-      <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z" />
-    </svg>
-  ),
   Layers: (p: P) => (
     <svg {...base} {...p}>
       <polygon points="12 2 2 7 12 12 22 7 12 2" />
