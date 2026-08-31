@@ -10,6 +10,7 @@ import Explore from "./pages/Explore";
 import Zones from "./pages/Zones";
 import System from "./pages/System";
 import Notifications from "./pages/Notifications";
+import Settings from "./pages/Settings";
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="zones" element={<Zones />} />
         <Route path="system" element={<System />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

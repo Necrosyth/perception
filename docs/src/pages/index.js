@@ -5,44 +5,44 @@ import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 
 const cards = [
   {
-    title: "What is Surveillance Intelligence Lab?",
+    title: "Product Architecture",
     href: "/docs/intro",
-    body: "Overview of the product, the platform, and what each container does.",
+    body: "Comprehensive overview of the platform, edge microservices, container topology, and zero-cloud local CV pipeline.",
   },
   {
-    title: "Quick start",
+    title: "Quick Start & Deployment",
     href: "/docs/intro/installation",
-    body: "Bring the whole stack up with docker compose and see live video in minutes.",
+    body: "Deploy the whole stack via Docker Compose with hardware acceleration and verify real-time video streams in minutes.",
   },
   {
-    title: "Configuration reference",
+    title: "Configuration Reference",
     href: "/docs/configuration",
-    body: "Every key in aina.yaml — cameras, zones, detection, tracking, persistence.",
+    body: "Full aina.yaml schema: camera ingest, polygon zone matrix, ByteTrack tracker heuristics, and disk retention rings.",
   },
   {
-    title: "Using the dashboard",
+    title: "Dashboard & Operator Guide",
     href: "/docs/usage/live",
-    body: "Live grid, review, semantic explore, zone editor, and system health.",
+    body: "Live matrix feeds, Birds Eye composite restream, semantic explore, interactive zone drawing, and alert dispatch.",
   },
   {
-    title: "API reference",
+    title: "Platform REST API",
     href: "/docs/platform/api",
-    body: "REST endpoints for cameras, zones, tracks, and events.",
+    body: "High-throughput endpoints for cameras, zone events, tracking coordinates, embeddings, and clip extractions.",
   },
   {
-    title: "GPU acceleration",
+    title: "GPU Acceleration & TensorRT",
     href: "/docs/deployment/gpu-acceleration",
-    body: "Edge (Jetson) and AWS (T4 / A10G) deployment, TensorRT engine caching.",
+    body: "Edge deployment on NVIDIA Jetson, Orin, and desktop/datacenter GPUs with automated TensorRT engine compilation.",
   },
   {
-    title: "Architecture",
+    title: "Module Engine Architecture",
     href: "/docs/development/architecture",
-    body: "The module system, orchestrator dependency graph, and no-coupling rules.",
+    body: "Event-driven orchestrator architecture, asynchronous pipeline graphs, and building custom perception modules.",
   },
   {
-    title: "Roadmap",
+    title: "Roadmap & Release Notes",
     href: "/docs/development/roadmap",
-    body: "Planned capabilities: loitering, semantic search, face recognition, ANPR.",
+    body: "Upcoming features: multi-modal zero-shot search, dynamic face anonymization, and automated ANPR gate triggers.",
   },
 ];
 
@@ -52,19 +52,21 @@ export default function Home() {
     <Layout title={siteConfig.title} description={siteConfig.tagline}>
       <header className="hero hero--primary">
         <div className="container">
-          <div className="hero__badge">Hypotenuse Analytics</div>
+          <div className="hero__badge">
+            <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#2fbfa4", marginRight: 6 }} />
+            Hypotenuse Analytics · Documentation
+          </div>
           <h1 className="hero__title">Surveillance Intelligence Lab</h1>
           <p className="hero__subtitle">
-            Real-time computer-vision surveillance intelligence for loading docks, parking lots,
-            and facilities — detect, track, and search what the cameras saw.
+            Enterprise computer-vision surveillance platform for loading docks, facilities, and perimeter security — detect, track, and semantically search visual memory.
           </p>
           <p className="hero__tagline">Predict. Protect. Verify.</p>
-          <div style={{ marginTop: "1.5rem", display: "flex", gap: "0.75rem" }}>
-            <Link className="button button--primary button--lg" to="/docs/intro/installation">
-              Get started
+          <div style={{ marginTop: "2rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            <Link className="button button--primary button--lg" to="/docs/intro/installation" style={{ fontWeight: 700, borderRadius: 10, padding: "0.8rem 1.8rem", boxShadow: "0 0 20px rgba(47,191,164,0.3)" }}>
+              Get Started →
             </Link>
-            <Link className="button button--secondary button--lg" to="/docs/intro">
-              Read the docs
+            <Link className="button button--secondary button--lg" to="/docs/intro" style={{ fontWeight: 600, borderRadius: 10, padding: "0.8rem 1.8rem", background: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.15)" }}>
+              Architecture Overview
             </Link>
           </div>
         </div>
@@ -74,7 +76,10 @@ export default function Home() {
           <div className="card-grid">
             {cards.map((c) => (
               <Link key={c.href} to={c.href}>
-                <h3>{c.title}</h3>
+                <h3>
+                  <span>{c.title}</span>
+                  <span style={{ fontSize: "0.9rem", color: "#2fbfa4" }}>↗</span>
+                </h3>
                 <p>{c.body}</p>
               </Link>
             ))}

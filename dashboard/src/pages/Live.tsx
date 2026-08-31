@@ -1,48 +1,96 @@
 import { useMemo, useState } from "react";
-import { PageHeader, Segmented } from "../components/ui";
+import { Badge, Button, Input, PageHeader, Segmented } from "../components/ui";
 import { VideoTile } from "../components/VideoTile";
 import { streamUrl, useCameras } from "../lib/api";
 import { I } from "../components/icons";
 
-type Mode = "live" | "motion" | "grid";
+type Mode = "all" | "motion" | "alerts";
+type GridCols = "2" | "3" | "4";
 
 export default function Live() {
-  const [mode, setMode] = useState<Mode>("live");
-  const [grouped, setGrouped] = useState(false);
+  const [mode, setMode] = useState<Mode>("all");
+  const [gridCols, setGridCols] = useState<GridCols>("3");
+  const [filterQuery, setFilterQuery] = useState("");
   const { cameras, fromApi } = useCameras();
 
-  const visible = useMemo(() => cameras.filter((c) => (mode === "motion" ? c.hasMotion : c.enabled)), [mode, cameras]);
-  const streaming = visible.filter((c) => c.enabled).length;
+  const filtered = useMemo(() => {
+    return cameras.filter((c) => {
+      if (mode === "motion" && !c.hasMotion) return false;
+      if (mode === "alerts" && !c.hasMotion) return false;
+      if (filterQuery.trim()) {
+        const q = filterQuery.toLowerCase();
+        const matchName = c.name.toLowerCase().includes(q);
+        const matchZone = c.zones.some((z) => z.toLowerCase().includes(q));
+        if (!matchName && !matchZone) return false;
+      }
+      return true;
+    });
+  }, [mode, cameras, filterQuery]);
+
+  const activeCount = cameras.filter((c) => c.enabled).length;
+  const motionCount = cameras.filter((c) => c.hasMotion).length;
 
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
-        title="Live View"
-        subtitle={`${streaming} of ${cameras.length} cameras streaming${fromApi ? "" : " · mock"}`}
+        title="Live Surveillance Matrix"
+        subtitle={`Monitoring ${activeCount} active edge feeds across facility zones${fromApi ? " (go2rtc live pipeline)" : " · Mock telemetry active"}`}
+        badge={
+          <Badge tone={motionCount > 0 ? "amber" : "teal"} dot={true}>
+            {motionCount > 0 ? `${motionCount} Motion Triggers` : "Perimeter Clear"}
+          </Badge>
+        }
         actions={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-44 sm:w-56">
+              <I.Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+              <Input
+                placeholder="Filter cameras/zones..."
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
+
             <Segmented<Mode>
               value={mode}
               onChange={setMode}
               options={[
-                { value: "live", label: "Live" },
-                { value: "motion", label: "Motion" },
-                { value: "grid", label: "Grid" },
+                { value: "all", label: "All Streams" },
+                { value: "motion", label: `Motion (${motionCount})` },
+                { value: "alerts", label: "Priority" },
               ]}
             />
-            <button
-              onClick={() => setGrouped((v) => !v)}
-              className="flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-aina-slate/25 px-3 text-sm text-aina-slate hover:text-aina-teal"
-              title="Toggle image grid layout"
-            >
-              <I.Grid className="h-4 w-4" /> Image grid
-            </button>
-          </>
+
+            <div className="hidden sm:flex items-center gap-1 border-l border-slate-800/80 pl-2">
+              {(["2", "3", "4"] as GridCols[]).map((cols) => (
+                <Button
+                  key={cols}
+                  variant={gridCols === cols ? "glow" : "ghost"}
+                  size="xs"
+                  onClick={() => setGridCols(cols)}
+                  className="px-2"
+                  title={`${cols} columns`}
+                >
+                  {cols}x
+                </Button>
+              ))}
+            </div>
+          </div>
         }
       />
 
-      <div className={`grid gap-3 ${grouped ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3"}`}>
-        {visible.map((c) => (
+      {/* Grid of Video Feeds */}
+      <div
+        className={`grid gap-4 transition-all duration-300 ${
+          gridCols === "2"
+            ? "sm:grid-cols-2"
+            : gridCols === "4"
+              ? "sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
+              : "sm:grid-cols-2 lg:grid-cols-3"
+        }`}
+      >
+        {filtered.map((c) => (
           <VideoTile
             key={c.id}
             aspect="aspect-video"
@@ -59,19 +107,34 @@ export default function Live() {
               objects:
                 !fromApi && c.hasMotion && c.name === "Warehouse — East"
                   ? [
-                      { label: "person", box: [42, 34, 9, 22], color: "#2FBFA4" },
-                      { label: "forklift", box: [58, 46, 16, 14], color: "#E8A33D" },
+                      { label: "person", box: [42, 34, 9, 22], color: "#2FBFA4", score: 0.94 },
+                      { label: "forklift", box: [58, 46, 16, 14], color: "#E8A33D", score: 0.88 },
                     ]
                   : !fromApi && c.name === "Lobby Entrance"
-                    ? [{ label: "person", box: [30, 22, 8, 24], color: "#2FBFA4" }]
+                    ? [{ label: "person", box: [30, 22, 8, 24], color: "#2FBFA4", score: 0.96 }]
                     : undefined,
             }}
           />
         ))}
       </div>
 
-      {mode === "motion" && !visible.length && (
-        <p className="mt-8 text-center text-sm text-aina-slate">No camera currently reports motion.</p>
+      {filtered.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-800 bg-[#07111e]/60 p-12 text-center backdrop-blur-sm">
+          <I.VideoOff className="h-10 w-10 text-slate-500" />
+          <p className="mt-3 text-sm font-semibold text-slate-300">No active cameras match filters</p>
+          <p className="mt-1 text-xs text-slate-500">Try clearing your search or switching to "All Streams".</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => {
+              setMode("all");
+              setFilterQuery("");
+            }}
+          >
+            Reset Filters
+          </Button>
+        </div>
       )}
     </div>
   );

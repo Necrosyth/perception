@@ -1,16 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  --color-aina-navy: #0b1f3a;
-  --color-aina-navy-deep: #070f20;
+  --color-aina-navy-deep: #060b13;
+  --color-aina-navy: #0a121e;
+  --color-aina-navy-surface: #0f1c2e;
+  --color-aina-navy-card: #13233a;
+  --color-aina-navy-hover: #192e4d;
+  
   --color-aina-teal: #2fbfa4;
-  --color-aina-teal-dim: #1e7a6b;
-  --color-aina-amber: #e8a33d;
-  --color-aina-red: #d0453a;
-  --color-aina-slate: #8b9cb4;
-  --color-aina-frost: #e7eef7;
+  --color-aina-teal-dim: #1a6f5f;
+  --color-aina-teal-light: #48e2c5;
+  --color-aina-cyan: #00e5ff;
+  
+  --color-aina-amber: #f59e0b;
+  --color-aina-amber-dim: #92400e;
+  
+  --color-aina-red: #ef4444;
+  --color-aina-red-dim: #991b1b;
+  
+  --color-aina-purple: #8b5cf6;
+  
+  --color-aina-slate: #8fa0b5;
+  --color-aina-slate-dim: #475569;
+  --color-aina-frost: #f0f6fc;
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Outfit", "Plus Jakarta Sans", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Consolas, Menlo, monospace;
 }
 
 html,
@@ -21,16 +37,91 @@ body,
 
 body {
   margin: 0;
-  background: var(--color-aina-navy-deep);
-  color: var(--color-aina-frost);
+  background-color: #060b13;
+  color: #f0f6fc;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-/* subtle scanline/grid backdrop used on brand surfaces */
+/* Custom Sleek Dark Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(6, 11, 19, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(143, 160, 181, 0.25);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(47, 191, 164, 0.5);
+}
+
+/* Glassmorphic Cyber Backdrop and Grid */
 .aina-grid-backdrop {
   background-image:
-    linear-gradient(rgba(47, 191, 164, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(47, 191, 164, 0.06) 1px, transparent 1px);
-  background-size: 42px 42px;
+    radial-gradient(ellipse at 50% 0%, rgba(47, 191, 164, 0.08) 0%, transparent 65%),
+    linear-gradient(rgba(47, 191, 164, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(47, 191, 164, 0.04) 1px, transparent 1px);
+  background-size: 100% 100%, 32px 32px, 32px 32px;
+}
+
+.aina-radar-backdrop {
+  background-image:
+    radial-gradient(circle at center, rgba(47, 191, 164, 0.06) 0%, transparent 70%),
+    repeating-radial-gradient(circle at center, transparent 0, transparent 40px, rgba(47, 191, 164, 0.05) 41px, transparent 42px);
+}
+
+/* Surveillance HUD Scanline Overlay */
+.hud-scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.03) 0px,
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Subtle Glowing Borders and Glass Surfaces */
+.glass-panel {
+  background: linear-gradient(135deg, rgba(15, 28, 46, 0.75) 0%, rgba(10, 18, 30, 0.85) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-panel-glow {
+  background: linear-gradient(135deg, rgba(19, 35, 58, 0.8) 0%, rgba(10, 18, 30, 0.9) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(47, 191, 164, 0.2);
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.5), 0 0 20px -2px rgba(47, 191, 164, 0.1);
+}
+
+/* Micro animations */
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-radar-sweep {
+  animation: radar-sweep 8s linear infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.08); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.5s ease-in-out infinite;
 }

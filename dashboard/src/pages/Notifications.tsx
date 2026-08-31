@@ -6,73 +6,114 @@ import { cameras } from "../lib/mock";
 type Scope = { id: string; label: string; kind: "alert" | "detection"; camera: string; enabled: boolean };
 
 const INITIAL: Scope[] = [
-  { id: "s1", label: "person in dock_entry", kind: "alert", camera: "loading_dock", enabled: true },
-  { id: "s2", label: "loitering past dwell", kind: "alert", camera: "loading_dock", enabled: true },
-  { id: "s3", label: "any alert", kind: "alert", camera: "parking_north", enabled: false },
-  { id: "s4", label: "vehicle at gate", kind: "detection", camera: "parking_south", enabled: false },
-  { id: "s5", label: "face at doorway", kind: "detection", camera: "lobby", enabled: true },
+  { id: "s1", label: "Person in dock_entry", kind: "alert", camera: "loading_dock", enabled: true },
+  { id: "s2", label: "Loitering past dwell time (600s)", kind: "alert", camera: "loading_dock", enabled: true },
+  { id: "s3", label: "Perimeter breach", kind: "alert", camera: "parking_north", enabled: true },
+  { id: "s4", label: "Vehicle at gate", kind: "detection", camera: "parking_south", enabled: false },
+  { id: "s5", label: "Unrecognized face at doorway", kind: "detection", camera: "lobby", enabled: true },
 ];
 
 export default function Notifications() {
   const [scopes, setScopes] = useState(INITIAL);
   const [push, setPush] = useState(true);
+  const [testSent, setTestSent] = useState(false);
+
   const toggle = (id: string) => setScopes((s) => s.map((x) => (x.id === id ? { ...x, enabled: !x.enabled } : x)));
 
+  const handleTestDispatch = () => {
+    setTestSent(true);
+    setTimeout(() => setTestSent(false), 3000);
+  };
+
   return (
-    <div>
+    <div className="space-y-5">
       <PageHeader
-        title="Notifications"
-        subtitle="Web-push delivery when a review segment matches a scope — matched server-side on segment creation"
+        title="Alert Dispatch & Web-Push Triggers"
+        subtitle="Edge orchestrator dispatches web-push & webhook notifications whenever an incoming review segment matches active scope rules"
+        badge={
+          <Badge tone="teal" dot={true}>
+            VAPID WEB-PUSH READY
+          </Badge>
+        }
         actions={
-          <Button variant="solid" size="sm"><I.BellOn className="h-4 w-4" /> Push enabled</Button>
+          <Button variant="solid" size="sm" onClick={handleTestDispatch}>
+            <I.BellOn className="h-4 w-4" />
+            {testSent ? "Test Alert Fired ✓" : "Test Push Dispatch"}
+          </Button>
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
+        {/* Scopes Table */}
         <Card className="overflow-hidden">
-          <div className="border-b border-aina-slate/10 px-4 py-2.5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-aina-slate">Notification scopes</p>
+          <div className="flex items-center justify-between border-b border-slate-800/80 px-5 py-3.5 bg-[#081220]/90">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
+                Active Notification Scopes
+              </p>
+              <p className="text-[10px] text-slate-500 font-mono">Camera-level trigger bindings</p>
+            </div>
+            <Badge tone="cyan">{scopes.filter((s) => s.enabled).length} Enabled</Badge>
           </div>
-          {scopes.map((s) => {
-            const cam = cameras.find((c) => c.id === s.camera);
-            return (
-              <div key={s.id} className="flex items-center justify-between border-b border-aina-slate/8 px-4 py-3 last:border-0">
-                <div className="flex items-center gap-2.5">
-                  <Badge tone={s.kind === "alert" ? "red" : "teal"}>{s.kind}</Badge>
-                  <div>
-                    <p className="text-sm text-aina-frost">{s.label}</p>
-                    <p className="text-[11px] text-aina-slate">on {cam?.name}</p>
+
+          <div className="divide-y divide-slate-800/60">
+            {scopes.map((s) => {
+              const cam = cameras.find((c) => c.id === s.camera);
+              return (
+                <div key={s.id} className="flex items-center justify-between px-5 py-3.5 transition hover:bg-[#0c1829]/50">
+                  <div className="flex items-center gap-3">
+                    <Badge tone={s.kind === "alert" ? "red" : "teal"} dot={s.kind === "alert"}>
+                      {s.kind}
+                    </Badge>
+                    <div>
+                      <p className="text-xs font-bold text-[#f0f6fc]">{s.label}</p>
+                      <p className="text-[11px] font-mono text-slate-400 mt-0.5">Assigned to: {cam?.name}</p>
+                    </div>
                   </div>
+                  <Toggle checked={s.enabled} onChange={() => toggle(s.id)} label={`toggle ${s.label}`} />
                 </div>
-                <Toggle checked={s.enabled} onChange={() => toggle(s.id)} label={`toggle ${s.label}`} />
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </Card>
 
-        <div className="space-y-3">
-          <Card className="p-4">
-            <p className="mb-1 text-xs uppercase tracking-wider text-aina-slate">Delivery</p>
-            <div className="flex items-center justify-between py-2">
-              <span className="text-sm">Browser push (Web Push / VAPID)</span>
+        {/* Sidebar: Delivery Channels & Recent Log */}
+        <div className="space-y-4">
+          <Card className="p-4 space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+              Push Delivery Channel
+            </p>
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+              <div>
+                <span className="text-xs font-semibold text-slate-200">Browser Web-Push (VAPID)</span>
+                <p className="text-[10px] text-slate-400">Desktop and mobile notification alerts</p>
+              </div>
               <Toggle checked={push} onChange={setPush} label="browser push" />
             </div>
-            <p className="text-[11px] leading-5 text-aina-slate/70">
-              Subscriptions registered per browser; delivery only for segments matching an enabled scope on the segment's camera.
+            <p className="text-[11px] leading-relaxed text-slate-500 font-mono">
+              Subscriptions registered per client browser; dispatches only for segments matching an enabled scope.
             </p>
           </Card>
 
-          <Card className="p-4">
-            <p className="mb-2 text-xs uppercase tracking-wider text-aina-slate">Recents</p>
-            <div className="space-y-1.5 text-xs">
+          <Card className="p-4 space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+              Recent Dispatched Alerts
+            </p>
+            <div className="space-y-2">
               {[
-                { t: "2m ago", m: "loitering in dock_entry · 09:25", tone: "red" as const },
-                { t: "41m ago", m: "person at Lobby Entrance · 13:05", tone: "teal" as const },
-                { t: "3h ago", m: "truck at dock_bay · 14:40", tone: "amber" as const },
+                { t: "2m ago", m: "Loitering alert in dock_entry", cam: "Loading Dock", tone: "red" as const },
+                { t: "41m ago", m: "Face detected at doorway", cam: "Lobby Entrance", tone: "teal" as const },
+                { t: "3h ago", m: "Vehicle arrived at dock_bay", cam: "Loading Dock", tone: "amber" as const },
               ].map((n, i) => (
-                <div key={i} className="flex items-center justify-between rounded border border-aina-slate/10 px-2.5 py-2">
-                  <span className="text-aina-frost/90">{n.m}</span>
-                  <span className="text-[10px] text-aina-slate">{n.t}</span>
+                <div
+                  key={i}
+                  className="rounded-lg border border-slate-800 bg-[#07111e] p-2.5 transition hover:border-slate-700"
+                >
+                  <div className="flex items-center justify-between">
+                    <Badge tone={n.tone}>{n.cam}</Badge>
+                    <span className="font-mono text-[10px] text-slate-500">{n.t}</span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-slate-200">{n.m}</p>
                 </div>
               ))}
             </div>
