@@ -4,7 +4,7 @@ import { Badge, Card, EmptyState, PageHeader, Select, Segmented, Toggle } from "
 import { MockScene } from "../components/VideoTile";
 import { dateLabel, duration, timeAgo, timeHHMM } from "../lib/utils";
 import { type Severity } from "./reviewData";
-import { getSegments, type Segment, useCameras } from "../lib/api";
+import { getSegments, markSegmentReviewed, type Segment, useCameras } from "../lib/api";
 import { I } from "../components/icons";
 
 function segStart(s: Segment) {
@@ -13,6 +13,9 @@ function segStart(s: Segment) {
 function segEnd(s: Segment) {
   return new Date(s.ended_at).getTime();
 }
+function dayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 type Day = { yyyymmdd: string; alerts: number; detections: number };
 
@@ -20,7 +23,7 @@ function groupByDay(segs: Segment[]): Day[] {
   const map = new Map<string, { alerts: number; detections: number }>();
   for (const s of segs) {
     const d = new Date(s.started_at);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const key = dayKey(d);
     const cur = map.get(key) ?? { alerts: 0, detections: 0 };
     if (s.severity === "alert") cur.alerts += 1;
     else cur.detections += 1;
@@ -40,6 +43,7 @@ export default function Review() {
   const [fromApi, setFromApi] = useState(false);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string>("");
   const { cameras } = useCameras();
 
   useEffect(() => {
@@ -57,18 +61,18 @@ export default function Review() {
       }
     };
     load();
+    const poll = setInterval(load, 30000);
     return () => {
       cancelled = true;
+      clearInterval(poll);
     };
   }, [camera]);
 
-  const selectedDay = useMemo(
-    () =>
-      groupByDay(segments).length
-        ? groupByDay(segments)[0].yyyymmdd
-        : "",
-    [segments],
-  );
+  const days = useMemo(() => groupByDay(segments), [segments]);
+
+  useEffect(() => {
+    if (!selectedDay && days.length) setSelectedDay(days[0].yyyymmdd);
+  }, [days, selectedDay]);
 
   const visible = useMemo(
     () =>
@@ -78,14 +82,28 @@ export default function Review() {
             (severity === "all" || s.severity === severity) &&
             (camera === "all" || s.camera === camera) &&
             (label === "all" || s.label === label) &&
-            (showReviewed || !reviewed.has(s.id)),
+            (showReviewed || !reviewed.has(s.id)) &&
+            (!selectedDay || dayKey(new Date(s.started_at)) === selectedDay),
         )
         .sort((a, b) => segEnd(b) - segEnd(a)),
-    [segments, severity, camera, label, showReviewed, reviewed],
+    [segments, severity, camera, label, showReviewed, reviewed, selectedDay],
   );
 
+  const toggleReviewed = async (s: Segment) => {
+    const target = !s.reviewed;
+    const ok = await markSegmentReviewed(s.id, target);
+    if (ok) {
+      setSegments((prev) => prev.map((x) => (x.id === s.id ? { ...x, reviewed: target } : x)));
+      setReviewed((prev) => {
+        const next = new Set(prev);
+        if (target) next.add(s.id);
+        else next.delete(s.id);
+        return next;
+      });
+    }
+  };
+
   const alertsCount = visible.filter((s) => s.severity === "alert").length;
-  const days = groupByDay(segments);
 
   return (
     <div className="space-y-5">
@@ -134,6 +152,7 @@ export default function Review() {
               return (
                 <button
                   key={d.yyyymmdd}
+                  onClick={() => setSelectedDay(d.yyyymmdd === selectedDay ? "" : d.yyyymmdd)}
                   className={`w-20 shrink-0 cursor-pointer rounded-md border p-2.5 transition-colors select-none ${
                     isSelected
                       ? "border-obs-accent/50 bg-obs-accent/10"
@@ -295,10 +314,16 @@ export default function Review() {
                   </div>
 
                   <div className="flex items-center justify-between border-t border-obs-line pt-2.5">
-                    <span className="flex items-center gap-1.5 font-mono text-[11px] font-medium text-obs-accent">
+                    <button
+                      onClick={() => toggleReviewed(s)}
+                      className={`flex items-center gap-1.5 rounded font-mono text-[11px] font-medium transition-colors select-none ${
+                        s.reviewed ? "text-obs-accent hover:text-obs-fg" : "text-obs-fg-dim hover:text-obs-fg"
+                      }`}
+                      title={s.reviewed ? "Mark as unreviewed" : "Mark as reviewed"}
+                    >
                       <I.Check className="h-3.5 w-3.5" />
-                      {s.reviewed ? "Reviewed" : "Unreviewed"}
-                    </span>
+                      {s.reviewed ? "Reviewed" : "Mark reviewed"}
+                    </button>
                     <Link
                       to={`/review/${s.id}`}
                       className="font-mono text-[11px] text-obs-fg-dim hover:text-obs-fg"

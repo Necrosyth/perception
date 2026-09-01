@@ -106,7 +106,7 @@ STOPWORDS = {
 }
 
 _CLOCK = re.compile(r"(?P<hour>\d{1,2})(?::(?P<min>\d{2}))?\s*(?P<ampm>am|pm)\b", re.I)
-_CLOCK24 = re.compile(r"(\d{1,2}):(\d{2})\b")
+_CLOCK24 = re.compile(r"(?P<hour>\d{1,2}):(?P<min>\d{2})\b", re.I)
 
 
 def parse_nl(query: str, catalogs: Catalogs, now: datetime | None = None) -> ParsedQuery:
@@ -202,18 +202,6 @@ def _extract_time(text: str, now: datetime):
     return text, t_from, t_to
 
 
-def _clock_of(match: re.Match, day: datetime) -> datetime:
-    hour = int(match.group("hour")) % 24
-    minute = int(match.group("min") or 0)
-    if match.group("ampm"):
-        ampm = match.group("ampm").lower()
-        if ampm == "pm" and hour < 12:
-            hour += 12
-        if ampm == "am" and hour == 12:
-            hour = 0
-    return day.replace(hour=hour, minute=minute, second=0, microsecond=0)
-
-
 def _between_window(text: str, now: datetime) -> tuple[str, datetime | None, datetime | None]:
     m = re.search(
         r"\b(?:between|from)\s+(?P<a>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:and|to|until|-)\s*(?P<b>\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b",
@@ -228,17 +216,27 @@ def _between_window(text: str, now: datetime) -> tuple[str, datetime | None, dat
     text = _remove_phrase(text, m.group(0))
     t_a = _parse_clock(a, day)
     t_b = _parse_clock(b, day)
+    if t_a is None or t_b is None:
+        return text, t_a or t_b, None
     if t_b <= t_a:
         t_b += timedelta(days=1)  # "between 10pm and 2am"
     return text, t_a, t_b
 
 
 def _parse_clock(value: str, day):
-    m = _CLOCK.match(value)
+    m = _CLOCK.match(value) or _CLOCK24.match(value)
     if not m:
         return None
     d = datetime(day.year, day.month, day.day, tzinfo=UTC, second=0, microsecond=0)
-    return _clock_of(m, d)
+    hour = int(m.group("hour")) % 24
+    minute = int(m.group("min") or 0)
+    if "ampm" in m.groupdict() and m.group("ampm"):
+        ampm = m.group("ampm").lower()
+        if ampm == "pm" and hour < 12:
+            hour += 12
+        if ampm == "am" and hour == 12:
+            hour = 0
+    return d.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
 def _after_before(text: str, now: datetime) -> tuple[str, datetime | None, datetime | None]:

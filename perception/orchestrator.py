@@ -175,8 +175,19 @@ class Orchestrator:
 
         self.schedule = self._topological_sort(name_to_node)
 
-        for node in self.schedule:
-            node.module.start()
+        # Start modules in graph order; if any start() fails, unwind the ones
+        # already started so heavy GPU/model resources are not leaked on a
+        # partial boot.
+        try:
+            for node in self.schedule:
+                node.module.start()
+        except Exception:
+            for node in reversed(self.schedule):
+                try:
+                    node.module.stop()
+                except Exception:  # noqa: BLE001 - cleanup must not mask the original error
+                    logger.exception("failure while unwinding start for %s", node.name)
+            raise
 
     # ------------------------------------------------------------------ #
     def _reject_unimplemented(self) -> None:

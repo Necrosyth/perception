@@ -7,13 +7,14 @@ reachability; a down database degrades scores rather than failing the API.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import Body, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
 
 import db
 import nl
@@ -25,24 +26,34 @@ APP_VERSION = "0.1.0-alpha"
 logger = logging.getLogger("aina.api")
 
 _CONN = None
+_CONN_LOCK = threading.Lock()
 
 
 def get_conn():
-    """Long-lived connection with automatic reset; None until first use."""
+    """Long-lived connection with automatic reset; None until first use.
+
+    Single shared psycopg connection serialized through a lock — safe for
+    FastAPI's threadpool but still a single DB session by design.
+    """
     global _CONN
-    try:
-        if _CONN is None:
-            _CONN = db.connect()
-        _CONN.cursor().execute("SELECT 1")
-        return _CONN
-    except Exception:  # noqa: BLE001 - health must never 500
-        if _CONN is not None:
+    with _CONN_LOCK:
+        try:
+            if _CONN is None:
+                _CONN = db.connect()
+            cur = _CONN.cursor()
             try:
-                _CONN.close()
-            except Exception:  # noqa: BLE001
-                pass
-            _CONN = None
-        return None
+                cur.execute("SELECT 1")
+            finally:
+                cur.close()
+            return _CONN
+        except Exception:  # noqa: BLE001 - health must never 500
+            if _CONN is not None:
+                try:
+                    _CONN.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                _CONN = None
+            return None
 
 
 @asynccontextmanager
@@ -250,10 +261,12 @@ def list_events(
 
 
 def _seg_label(labels) -> str:
-    import json
-
-    parsed = labels if isinstance(labels, list) else json.loads(labels or "[]")
+    parsed = _seg_labels(labels)
     return parsed[0] if parsed else "detection"
+
+
+def _seg_labels(labels) -> list[str]:
+    return labels if isinstance(labels, list) else json.loads(labels or "[]")
 
 
 @app.get("/api/segments")
@@ -296,7 +309,7 @@ def list_segments(
                 "camera": r[1],
                 "camera_id": str(r[2]),
                 "label": _seg_label(r[5]),
-                "labels": _seg_label(r[5]),
+                "labels": _seg_labels(r[5]),
                 "started_at": r[3],
                 "ended_at": r[4],
                 "severity": r[6],
@@ -369,15 +382,11 @@ def list_recordings(camera: str) -> list[str]:
     base = os.environ.get("RECORDING_DIR", "/recordings")
     cam_dir = os.path.join(base, camera)
     try:
-        files = os.listdir(cam_dir)
+        files = [(f, os.path.getmtime(os.path.join(cam_dir, f))) for f in os.listdir(cam_dir) if f.endswith(".mp4")]
     except OSError:
         return []
-    files = sorted(
-        (f for f in files if f.endswith(".mp4")),
-        key=lambda f: f,
-        reverse=True,
-    )
-    return [f"/recordings/{camera}/{f}" for f in files]
+    files.sort(key=lambda p: p[1], reverse=True)
+    return [f"/recordings/{camera}/{f}" for f, _ in files]
 
 
 @app.post("/api/segments/{segment_id}/reviewed")
@@ -385,6 +394,8 @@ def mark_reviewed(segment_id: str, reviewed: bool = Query(True)) -> dict:
     conn = _require_db()
     cur = conn.cursor()
     cur.execute("UPDATE segments SET reviewed = %s WHERE id = %s::uuid", [reviewed, segment_id])
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="segment not found")
     return {"id": segment_id, "reviewed": reviewed}
 
 
@@ -416,8 +427,6 @@ def create_zone(
 ) -> dict:
     """Persist a new zone polygon for a camera (same identity scheme as
     perception: zone ids are stable uuid5 values, so a resend is an upsert)."""
-    import json
-
     conn = _require_db()
     row = conn.cursor().execute(
         "SELECT id FROM cameras WHERE name = %s", [camera]
@@ -442,7 +451,10 @@ def create_zone(
 @app.delete("/api/zones/{zone_id}")
 def delete_zone(zone_id: str) -> dict:
     conn = _require_db()
-    conn.cursor().execute("DELETE FROM zones WHERE id = %s::uuid", [zone_id])
+    cur = conn.cursor()
+    cur.execute("DELETE FROM zones WHERE id = %s::uuid", [zone_id])
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="zone not found")
     return {"deleted": True}
 
 
@@ -455,8 +467,27 @@ def update_zone(
 ) -> dict:
     conn = _require_db()
     cur = conn.cursor()
+    cur.execute("SELECT 1 FROM zones WHERE id = %s::uuid", [zone_id])
+    if cur.fetchone() is None:
+        raise HTTPException(status_code=404, detail="zone not found")
+
+    # revisit camera: its name becomes part of the zone's stable id, so resolve
+    # the new camera and rewrite id + camera_id together on a reassignment.
+    if camera is not None:
+        crow = conn.cursor().execute(
+            "SELECT id FROM cameras WHERE name = %s", [camera]
+        ).fetchone()
+        if crow is None:
+            raise HTTPException(status_code=404, detail="camera not found")
+        import uuid
+
+        AINA_NS = uuid.uuid5(uuid.NAMESPACE_DNS, "aina-sentinel.hypotenuse.ai")
+        cur.execute(
+            "UPDATE zones SET id = %s, camera_id = %s WHERE id = %s::uuid",
+            [str(uuid.uuid5(AINA_NS, f"zone:{camera}:{name or 'zone'}")), str(crow[0]), zone_id],
+        )
     if polygon:
-        cur.execute("UPDATE zones SET polygon = %s::jsonb WHERE id = %s::uuid", [__import__("json").dumps(polygon), zone_id])
+        cur.execute("UPDATE zones SET polygon = %s::jsonb WHERE id = %s::uuid", [json.dumps(polygon), zone_id])
     if name:
         cur.execute("UPDATE zones SET name = %s WHERE id = %s::uuid", [name, zone_id])
     return {"id": zone_id}

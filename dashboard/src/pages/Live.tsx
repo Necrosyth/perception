@@ -1,22 +1,18 @@
 import { useMemo, useState } from "react";
-import { Badge, Button, Input, PageHeader, Segmented } from "../components/ui";
+import { Badge, Button, Input, PageHeader } from "../components/ui";
 import { VideoTile } from "../components/VideoTile";
 import { streamUrl, useCameras } from "../lib/api";
 import { I } from "../components/icons";
 
-type Mode = "all" | "motion" | "alerts";
 type GridCols = "2" | "3" | "4";
 
 export default function Live() {
-  const [mode, setMode] = useState<Mode>("all");
   const [gridCols, setGridCols] = useState<GridCols>("3");
   const [filterQuery, setFilterQuery] = useState("");
   const { cameras, fromApi } = useCameras();
 
   const filtered = useMemo(() => {
     return cameras.filter((c) => {
-      if (mode === "motion" && !c.hasMotion) return false;
-      if (mode === "alerts" && !c.hasMotion) return false;
       if (filterQuery.trim()) {
         const q = filterQuery.toLowerCase();
         const matchName = c.name.toLowerCase().includes(q);
@@ -25,10 +21,9 @@ export default function Live() {
       }
       return true;
     });
-  }, [mode, cameras, filterQuery]);
+  }, [cameras, filterQuery]);
 
   const activeCount = cameras.filter((c) => c.enabled).length;
-  const motionCount = cameras.filter((c) => c.hasMotion).length;
 
   return (
     <div className="space-y-5">
@@ -36,8 +31,8 @@ export default function Live() {
         title="Live View"
         subtitle={`${activeCount} camera feeds across the facility${fromApi ? " · go2rtc live pipeline" : ""}`}
         badge={
-          <Badge tone={motionCount > 0 ? "warn" : "ok"} dot>
-            {motionCount > 0 ? `${motionCount} with motion` : "All clear"}
+          <Badge tone={activeCount > 0 ? "ok" : "warn"} dot>
+            {activeCount > 0 ? `${activeCount} online` : "no feeds"}
           </Badge>
         }
         actions={
@@ -52,17 +47,7 @@ export default function Live() {
               />
             </div>
 
-            <Segmented<Mode>
-              value={mode}
-              onChange={setMode}
-              options={[
-                { value: "all", label: "All" },
-                { value: "motion", label: `Motion (${motionCount})` },
-                { value: "alerts", label: "Priority" },
-              ]}
-            />
-
-            <div className="hidden sm:flex items-center gap-1 border-l border-obs-line pl-2">
+            <div className="flex items-center gap-1 border-l border-obs-line pl-2">
               {(["2", "3", "4"] as GridCols[]).map((cols) => (
                 <Button
                   key={cols}
@@ -112,15 +97,12 @@ export default function Live() {
         <div className="flex flex-col items-center justify-center rounded-lg border border-obs-line bg-obs-2 p-12 text-center">
           <I.VideoOff className="h-10 w-10 text-obs-fg-faint" />
           <p className="mt-3 text-sm font-semibold text-obs-fg-dim">No cameras match the filter</p>
-          <p className="mt-1 text-xs text-obs-fg-faint">Try clearing your search or switching to "All".</p>
+          <p className="mt-1 text-xs text-obs-fg-faint">Try clearing your search to see all cameras.</p>
           <Button
             variant="outline"
             size="sm"
             className="mt-4"
-            onClick={() => {
-              setMode("all");
-              setFilterQuery("");
-            }}
+            onClick={() => setFilterQuery("")}
           >
             Reset Filters
           </Button>

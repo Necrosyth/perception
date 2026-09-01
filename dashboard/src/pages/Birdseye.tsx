@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge, Button, Card, EmptyState, MetricCard, PageHeader } from "../components/ui";
 import { VideoTile } from "../components/VideoTile";
-import { streamUrl, useCameras } from "../lib/api";
+import { getSystem, streamUrl, useCameras, type SystemSummary } from "../lib/api";
 import { I } from "../components/icons";
 import { timeHHMMSS } from "../lib/utils";
 
@@ -12,12 +12,19 @@ export default function Birdseye() {
   const [layout, setLayout] = useState<(typeof layouts)[number]>("2x2");
   const [follow, setFollow] = useState(false);
   const { cameras, fromApi } = useCameras();
+  const [sys, setSys] = useState<SystemSummary | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getSystem().then((s) => alive && setSys(s));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const pool = useMemo(() => cameras.filter((c) => c.enabled), [cameras]);
   const shown = layout === "2x2" ? pool.slice(0, 4) : pool;
-  const motionCount = 0;
-  const avgFps =
-    pool.length ? "—" : "—";
-  const totalBitrate = "—";
+  const activeCount = pool.length;
 
   return (
     <div className="space-y-5">
@@ -57,9 +64,9 @@ export default function Birdseye() {
       {/* Composite status strip */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard title="Cameras on matrix" value={shown.length > 0 ? `${shown.length}/${pool.length}` : "0"} unit="feeds" subtitle="Enabled cameras in composite" tone="ok" />
-        <MetricCard title="Active motion" value={motionCount} unit="zones" subtitle="Regions with recent activity" tone="ok" />
-        <MetricCard title="Composite ingest" value={avgFps} unit="FPS" subtitle="Mean stream rate across matrix" tone="accent" />
-        <MetricCard title="Total bandwidth" value={`${totalBitrate}`} unit="client-side" subtitle="Single multiplexed connection" tone="accent" />
+        <MetricCard title="Feeds in composite" value={activeCount} unit="streams" subtitle="Enabled cameras online" tone="ok" />
+        <MetricCard title="Objects tracked" value={sys?.track_count ?? "—"} unit="tracks" subtitle="All-time perception segments" tone="accent" />
+        <MetricCard title="Recorded segments" value={sys?.segment_count ?? "—"} unit="clips" subtitle="Continuous recording" tone="accent" />
       </div>
 
       {/* Composite matrix */}

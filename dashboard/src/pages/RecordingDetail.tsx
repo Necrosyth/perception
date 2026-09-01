@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Badge, Button, Card } from "../components/ui";
 import { I } from "../components/icons";
@@ -9,12 +9,15 @@ import { EmptyState } from "../components/ui";
 export default function RecordingDetail() {
   const { segmentId = "" } = useParams();
   const { cameras } = useCameras();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [seg, setSeg] = useState<Segment | null>(null);
   const [recordings, setRecordings] = useState<string[]>([]);
   const [liveUrl, setLiveUrl] = useState<string>("");
+  const [clipIndex, setClipIndex] = useState(0);
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
+    setClipIndex(0);
     const load = async () => {
       if (!segmentId) return;
       const s = await getSegment(segmentId);
@@ -33,9 +36,34 @@ export default function RecordingDetail() {
   const cam = useMemo(() => cameras.find((c) => c.id === seg?.camera), [cameras, seg]);
   const start = seg ? new Date(seg.started_at).getTime() : 0;
   const end = seg ? new Date(seg.ended_at).getTime() : 0;
-  const [pos, setPos] = useState(0.42);
   const [playing, setPlaying] = useState(false);
   const [exported, setExported] = useState(false);
+
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) {
+      v.play();
+      setPlaying(true);
+    } else {
+      v.pause();
+      setPlaying(false);
+    }
+  };
+
+  const seekBy = (deltaSec: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = Math.max(0, Math.min(v.duration || 0, v.currentTime + deltaSec));
+  };
+
+  const jumpTo = (fraction: number) => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = (v.duration || 0) * Math.max(0, Math.min(1, fraction));
+  };
+
+  const activeSrc = recordings.length ? recordings[Math.min(clipIndex, recordings.length - 1)] : liveUrl;
 
   if (missing || !seg) {
     return (
@@ -52,7 +80,6 @@ export default function RecordingDetail() {
     );
   }
 
-  const tAt = (p: number) => start + (end - start) * p;
   const handleExport = () => {
     setExported(true);
     setTimeout(() => setExported(false), 3000);
@@ -72,22 +99,17 @@ export default function RecordingDetail() {
         <div className="space-y-4">
           <div className="relative overflow-hidden rounded-lg border border-obs-line bg-obs-2">
             <div className="aspect-video relative overflow-hidden bg-black">
-              {recordings.length > 0 ? (
+              {activeSrc ? (
                 <video
+                  ref={videoRef}
+                  key={activeSrc}
                   className="absolute inset-0 h-full w-full object-cover"
-                  src={`${recordings[0]}`}
-                  controls
+                  src={activeSrc}
                   autoPlay
                   muted
                   playsInline
-                />
-              ) : liveUrl ? (
-                <video
-                  className="absolute inset-0 h-full w-full object-cover"
-                  src={liveUrl}
-                  autoPlay
-                  muted
-                  playsInline
+                  onPlay={() => setPlaying(true)}
+                  onPause={() => setPlaying(false)}
                 />
               ) : (
                 <EmptyState title="No recording yet" hint="Recording is continuous; a clip will be available shortly." />
@@ -113,7 +135,6 @@ export default function RecordingDetail() {
           <Card className="p-4 space-y-3">
             <div className="flex items-center justify-between text-xs font-mono text-obs-fg-dim">
               <span className="text-obs-fg">{timeHHMM(start)}</span>
-              <span className="text-obs-accent-strong">{timeHHMMSS(tAt(pos))}</span>
               <span className="text-obs-fg">{timeHHMM(end)}</span>
             </div>
 
@@ -122,21 +143,22 @@ export default function RecordingDetail() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setPlaying((p) => !p)}
+                  onClick={togglePlay}
+                  disabled={!activeSrc}
                 >
                   {playing ? <I.Pause className="h-4 w-4" /> : <I.Play className="h-4 w-4" />}
                   {playing ? "Pause" : "Play"}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setPos(0)} title="Jump to start">
+                <Button size="sm" variant="outline" onClick={() => jumpTo(0)} title="Jump to start" disabled={!activeSrc}>
                   Start
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setPos((p) => Math.max(0, p - 0.05))}>
+                <Button size="sm" variant="outline" onClick={() => seekBy(-5)} disabled={!activeSrc}>
                   -5s
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setPos((p) => Math.min(1, p + 0.05))}>
+                <Button size="sm" variant="outline" onClick={() => seekBy(5)} disabled={!activeSrc}>
                   +5s
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => setPos(1)} title="Jump to end">
+                <Button size="sm" variant="outline" onClick={() => jumpTo(1)} title="Jump to end" disabled={!activeSrc}>
                   End
                 </Button>
               </div>
@@ -164,16 +186,18 @@ export default function RecordingDetail() {
             <div className="space-y-2">
               {recordings.length ? (
                 recordings.map((r, i) => (
-                  <a
+                  <button
                     key={r}
-                    href={r}
-                    className="flex items-center justify-between rounded-md border border-obs-line bg-obs-1 p-2.5 font-mono text-[11px] text-obs-fg-dim hover:border-obs-accent/40"
-                    target="_blank"
-                    rel="noreferrer"
+                    onClick={() => setClipIndex(i)}
+                    className={`flex w-full items-center justify-between rounded-md border p-2.5 font-mono text-[11px] transition-colors select-none ${
+                      i === clipIndex
+                        ? "border-obs-accent/40 bg-obs-accent/10 text-obs-fg"
+                        : "border-obs-line bg-obs-1 text-obs-fg-dim hover:border-obs-accent/40"
+                    }`}
                   >
                     <span>clip {i + 1}</span>
-                    <span className="text-obs-accent">play</span>
-                  </a>
+                    <span className="text-obs-accent">{i === clipIndex ? "now playing" : "load"}</span>
+                  </button>
                 ))
               ) : (
                 <p className="text-[11px] text-obs-fg-faint">No clips found yet.</p>

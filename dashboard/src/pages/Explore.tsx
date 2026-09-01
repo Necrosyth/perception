@@ -151,34 +151,41 @@ export default function Explore() {
             options={searchTypes.map((t) => ({ value: t.value, label: t.label }))}
           />
           <span className="font-mono text-[11px] text-obs-fg-faint">
-            {fromApi ? "Connected to vector pipeline" : "Simulated embeddings"}
+            {fromApi ? "Connected to vector pipeline" : "Vector pipeline unreachable"}
           </span>
         </div>
       </Card>
 
       {showLanding ? (
-        <div className="space-y-3">
-          <p className="text-xs font-mono uppercase tracking-wider text-obs-fg-dim">
-            Index by detected class
-          </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {(summary).map(({ label: lbl, count }) => (
-              <Card
-                key={lbl}
-                className="cursor-pointer p-4 transition hover:border-obs-accent/40 hover:bg-obs-3 group"
-                onClick={() => setLabel(lbl)}
-              >
-                <div className="mb-3 h-16 overflow-hidden rounded-md border border-obs-line relative">
-                  <MockScene c1="#1c2833" c2="#141a20" />
-                </div>
-                <p className="text-sm font-medium capitalize text-obs-fg group-hover:text-obs-accent-strong transition-colors">
-                  {lbl}
-                </p>
-                <p className="text-[11px] text-obs-fg-faint font-mono mt-0.5">{count} clips</p>
-              </Card>
-            ))}
+        summary.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-xs font-mono uppercase tracking-wider text-obs-fg-dim">
+              Index by detected class
+            </p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {(summary).map(({ label: lbl, count }) => (
+                <Card
+                  key={lbl}
+                  className="cursor-pointer p-4 transition hover:border-obs-accent/40 hover:bg-obs-3 group"
+                  onClick={() => setLabel(lbl)}
+                >
+                  <div className="mb-3 h-16 overflow-hidden rounded-md border border-obs-line relative">
+                    <MockScene c1="#1c2833" c2="#141a20" />
+                  </div>
+                  <p className="text-sm font-medium capitalize text-obs-fg group-hover:text-obs-accent-strong transition-colors">
+                    {lbl}
+                  </p>
+                  <p className="text-[11px] text-obs-fg-faint font-mono mt-0.5">{count} clips</p>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : (
+          <EmptyState
+            title="Vector index is still building"
+            hint="Perception is generating CLIP embeddings for recorded tracks. Once embeddings are indexed, searchable classes will appear here."
+          />
+        )
       ) : (
         <div className="space-y-4">
           <div className="flex items-center justify-between">

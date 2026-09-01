@@ -228,25 +228,37 @@ class Tracking(PerceptionModule):
         return gid
 
     def _prune(self, source: str, states: list[TrackState]) -> None:
-        """Drop per-track smoothers once their backend track is gone."""
-        alive = {(source, st.track_id) for st in states}
+        """Drop per-track smoothers once their backend track is gone.
+
+        All smoother dicts are keyed by ``(source, global_gid)`` — the global id
+        assigned by ``_gid_for`` — so the alive set must be built from global
+        ids too, not the backend's per-camera local ids. Otherwise every track
+        on cameras past the first would be considered dead each frame, resetting
+        its Kalman/OneEuro history and churning global track ids.
+        """
+        alive: set[tuple[str, int]] = set()
+        for st in states:
+            gid = self._gids.get((source, st.track_id))
+            if gid is not None:
+                alive.add((source, gid))
         for track_key in list(self._kalmans):
-            local = track_key[1]
-            if (source, local) not in alive and track_key[0] == source:
+            if track_key[0] == source and track_key not in alive:
                 del self._kalmans[track_key]
         for track_key in list(self._euros):
-            local = track_key[1]
-            if (source, local) not in alive and track_key[0] == source:
+            if track_key[0] == source and track_key not in alive:
                 del self._euros[track_key]
         for track_key in list(self._last_render):
-            if track_key not in alive and track_key[0] == source:
+            if track_key[0] == source and track_key not in alive:
                 del self._last_render[track_key]
         for track_key in list(self._track_t):
-            if track_key not in alive and track_key[0] == source:
+            if track_key[0] == source and track_key not in alive:
                 del self._track_t[track_key]
-        for track_key in list(self._gids):
-            if track_key not in alive and track_key[0] == source:
-                del self._gids[track_key]
+        alive_gids = {gid for (_, gid) in alive}
+        for key in list(self._gids):
+            # _gids maps (source, local_id) -> global_gid; prune when the
+            # backend's track for that local id is no longer alive.
+            if key[0] == source and self._gids[key] not in alive_gids:
+                del self._gids[key]
 
     # -- smoothing toggles ---------------------------------------------- #
     def _sm_bool(self, key: str) -> bool:

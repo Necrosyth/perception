@@ -1,7 +1,21 @@
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui";
+import { useCameras, getSystem } from "../lib/api";
+import { useEffect, useState } from "react";
 
 export default function SplashPage() {
+  const { cameras } = useCameras();
+  const [perceptionOk, setPerceptionOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getSystem().then((s) => alive && setPerceptionOk(s?.perception_rpc ?? false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const online = cameras.filter((c) => c.enabled).length;
   return (
     <main className="relative flex h-full min-h-screen flex-col items-center justify-center overflow-hidden bg-obs-0 text-obs-fg select-none">
       {/* Layered neutral backdrop — no glow, no grid */}
@@ -29,8 +43,12 @@ export default function SplashPage() {
 
         {/* Status line */}
         <div className="mt-8 flex items-center gap-3 rounded-full border border-obs-line bg-obs-2 px-5 py-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-obs-ok" />
-          <span className="font-mono text-[11px] text-obs-fg-dim">6 cameras online · perception ready</span>
+          <span className={perceptionOk === false ? "h-1.5 w-1.5 rounded-full bg-obs-warn" : "h-1.5 w-1.5 rounded-full bg-obs-ok"} />
+          <span className="font-mono text-[11px] text-obs-fg-dim">
+            {perceptionOk === false
+              ? `${online} cameras online · perception offline`
+              : `${online} cameras online · perception ${perceptionOk === null ? "…" : "ready"}`}
+          </span>
         </div>
 
         <div className="mt-9 flex flex-col sm:flex-row items-center gap-3">

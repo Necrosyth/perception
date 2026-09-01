@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "../lib/utils";
 import { I } from "./icons";
 import { Badge } from "./ui";
+import { useCameras, getSystem, type SystemSummary } from "../lib/api";
 
 const nav = [
   { to: "/", label: "Live View", icon: I.Grid, end: true },
@@ -18,7 +19,27 @@ const nav = [
 export function AppShell() {
   const [time, setTime] = useState(new Date());
   const location = useLocation();
-  const [threatLevel] = useState<"NOMINAL" | "ELEVATED" | "CRITICAL">("NOMINAL");
+  const { cameras } = useCameras();
+  const [sys, setSys] = useState<SystemSummary | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const s = await getSystem();
+      if (alive) setSys(s);
+    };
+    load();
+    const timer = setInterval(load, 15000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const online = cameras.filter((c) => c.enabled).length;
+  const perceptionOk = sys?.perception_rpc ?? false;
+  const threatLevel: "NOMINAL" | "ELEVATED" | "CRITICAL" =
+    !perceptionOk ? "ELEVATED" : "NOMINAL";
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -116,21 +137,30 @@ export function AppShell() {
           <div className="rounded-md border border-obs-line bg-obs-2 p-3">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-xs font-medium text-obs-ok">
-                <span className="h-1.5 w-1.5 rounded-full bg-obs-ok" />
+                <span className={cn("h-1.5 w-1.5 rounded-full", perceptionOk ? "bg-obs-ok" : "bg-obs-warn")} />
                 Perception Engine
               </span>
-              <span className="rounded bg-obs-ok/10 px-1.5 py-0.5 font-mono text-[9px] font-medium text-obs-ok border border-obs-ok/20">
-                11.9 FPS
+              <span className={cn(
+                "rounded px-1.5 py-0.5 font-mono text-[9px] font-medium border",
+                perceptionOk
+                  ? "bg-obs-ok/10 text-obs-ok border-obs-ok/20"
+                  : "bg-obs-warn/10 text-obs-warn border-obs-warn/20",
+              )}>
+                {perceptionOk ? "online" : "offline"}
               </span>
             </div>
             <div className="mt-2.5 space-y-1 font-mono text-[10px] text-obs-fg-dim">
               <div className="flex justify-between">
                 <span>Model</span>
-                <span className="text-obs-fg">RT-DETR</span>
+                <span className="text-obs-fg">YOLO26s · CLIP</span>
               </div>
               <div className="flex justify-between">
                 <span>Deployment</span>
                 <span className="text-obs-fg">Edge · on-device</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Objects tracked</span>
+                <span className="text-obs-fg">{sys?.track_count ?? "—"}</span>
               </div>
             </div>
           </div>
@@ -147,9 +177,9 @@ export function AppShell() {
             </Badge>
             <span className="hidden sm:inline-block h-4 w-px bg-obs-line-strong" />
             <span className="hidden sm:flex items-center gap-2 text-xs font-mono text-obs-fg-dim">
-              <span className="text-obs-fg-faint">6 feeds</span>
+              <span className="text-obs-fg-faint">{cameras.length} feeds</span>
               <span className="text-obs-line-strong">·</span>
-              <span>all streams nominal</span>
+              <span>{online} online</span>
             </span>
           </div>
 
@@ -194,7 +224,7 @@ export function AppShell() {
             <span className="text-obs-fg-faint">Observatory · Hypotenuse Sec-Ops</span>
             <span className="hidden md:inline text-obs-line-strong">|</span>
             <span className="hidden md:inline text-obs-fg-faint">
-              on-device inference · 6 cameras · no cloud dependency
+              on-device inference · {cameras.length} cameras · no cloud dependency
             </span>
           </div>
           <div className="flex items-center gap-4">

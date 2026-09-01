@@ -52,6 +52,9 @@ class FramePump:
             self._cap = None
             self._period = 1.0 / max(0.1, float(self.target_fps))
             self._loop_media = bool(os.environ.get("AINA_MEDIA_LOOP", "1") not in ("0", "false", "no"))
+            # consecutive read failures before we treat an RTSP source as dead
+            self._max_fail = int(os.environ.get("AINA_INGEST_MAX_FAILURES", "30"))
+            self._base_delay = max(self._period, min(float(os.environ.get("AINA_INGEST_BACKOFF", "2.0")), 30.0))
 
         def open(self) -> None:
             try:
@@ -72,12 +75,34 @@ class FramePump:
             else:
                 logger.info("opened %s -> (%s, %s)", self.source, w, h)
 
+        def _reconnect(self) -> None:
+            """Release a dead RTSP capture and reopen it so a dropped stream
+            recovers instead of hot-spinning on a dead handle forever."""
+            import cv2
+
+            if self._cap is not None:
+                self._cap.release()
+            self._cap = None
+            delay = self._base_delay
+            while self._cap is None:
+                logger.warning("reconnecting %s (retry in %.1fs)", self.source, delay)
+                time.sleep(delay)
+                self._cap = cv2.VideoCapture(self.source)
+                if self._cap is not None and self._cap.isOpened():
+                    logger.info("reconnected %s", self.source)
+                    return
+                if self._cap is not None:
+                    self._cap.release()
+                    self._cap = None
+                delay = min(delay * 2, 30.0)
+
         def frames(self) -> Iterator[Frame]:
             if self._cap is None:
                 self.open()
             import cv2
 
             frame_id = 0
+            fails = 0
             try:
                 while self._cap is not None and self._cap.isOpened():
                     tick = time.monotonic()
@@ -86,9 +111,17 @@ class FramePump:
                         if self._is_media_file() and self._loop_media:
                             self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                             continue
-                        logger.debug("read failed on %s — retrying", self.source)
+                        fails += 1
+                        if not self._is_media_file() and fails >= self._max_fail:
+                            self._reconnect()
+                            fails = 0
+                            continue
+                        # transient drop (or a genuinely lost RTSP stream before
+                        # the reconnect threshold) — back off then retry
+                        logger.debug("read failed on %s (%d consecutive) — retrying", self.source, fails)
                         time.sleep(self._period)
                         continue
+                    fails = 0
                     h, w = image.shape[:2]
                     yield Frame(source=self.name, frame_id=frame_id, timestamp=time.time(),
                                 image=image, width=w, height=h)
