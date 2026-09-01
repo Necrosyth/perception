@@ -1,24 +1,28 @@
-import { useState } from "react";
-import { Badge, Button, Card, PageHeader, Toggle } from "../components/ui";
+import { useEffect, useState } from "react";
+import { Badge, Button, Card, PageHeader } from "../components/ui";
 import { I } from "../components/icons";
-import { cameras } from "../lib/mock";
-
-type Scope = { id: string; label: string; kind: "alert" | "detection"; camera: string; enabled: boolean };
-
-const INITIAL: Scope[] = [
-  { id: "s1", label: "Person in dock_entry", kind: "alert", camera: "loading_dock", enabled: true },
-  { id: "s2", label: "Loitering past dwell time (600s)", kind: "alert", camera: "loading_dock", enabled: true },
-  { id: "s3", label: "Perimeter breach", kind: "alert", camera: "parking_north", enabled: true },
-  { id: "s4", label: "Vehicle at gate", kind: "detection", camera: "parking_south", enabled: false },
-  { id: "s5", label: "Unrecognized face at doorway", kind: "detection", camera: "lobby", enabled: true },
-];
+import { getNotifications, type Notification, useCameras } from "../lib/api";
+import { timeAgo } from "../lib/utils";
+import { EmptyState } from "../components/ui";
 
 export default function Notifications() {
-  const [scopes, setScopes] = useState(INITIAL);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [push, setPush] = useState(true);
   const [testSent, setTestSent] = useState(false);
+  const { cameras } = useCameras();
 
-  const toggle = (id: string) => setScopes((s) => s.map((x) => (x.id === id ? { ...x, enabled: !x.enabled } : x)));
+  const refresh = async () => {
+    const n = await getNotifications(30);
+    if (n) {
+      setNotifications(n);
+      setLoaded(true);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
 
   const handleTestDispatch = () => {
     setTestSent(true);
@@ -29,10 +33,10 @@ export default function Notifications() {
     <div className="space-y-5">
       <PageHeader
         title="Alerts"
-        subtitle="Configure which review segments trigger web-push and webhook notifications"
+        subtitle="Live alerts derived from real zone-trigger events in Postgres"
         badge={
           <Badge tone="ok" dot>
-            push enabled
+            live feed
           </Badge>
         }
         actions={
@@ -47,30 +51,43 @@ export default function Notifications() {
         <Card className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-obs-line px-5 py-3.5">
             <div>
-              <p className="text-xs font-semibold text-obs-fg">Notification scopes</p>
-              <p className="text-[11px] text-obs-fg-faint">Camera-level trigger bindings</p>
+              <p className="text-xs font-semibold text-obs-fg">Detected activity</p>
+              <p className="text-[11px] text-obs-fg-faint">Real zone membership events</p>
             </div>
-            <Badge tone="accent">{scopes.filter((s) => s.enabled).length} enabled</Badge>
+            <Badge tone="accent">{notifications.length} recent</Badge>
           </div>
 
           <div className="divide-y divide-obs-line">
-            {scopes.map((s) => {
-              const cam = cameras.find((c) => c.id === s.camera);
-              return (
-                <div key={s.id} className="flex items-center justify-between px-5 py-3.5 transition hover:bg-obs-1">
-                  <div className="flex items-center gap-3">
-                    <Badge tone={s.kind === "alert" ? "alert" : "ok"} dot={s.kind === "alert"}>
-                      {s.kind}
-                    </Badge>
-                    <div>
-                      <p className="text-sm text-obs-fg">{s.label}</p>
-                      <p className="mt-0.5 text-[11px] font-mono text-obs-fg-faint">Assigned to: {cam?.name}</p>
+            {notifications.length === 0 ? (
+              <div className="px-5 py-8">
+                <EmptyState
+                  title={loaded ? "No activity yet" : "Loading live activity…"}
+                  hint="Zone entry/exit events will appear here as perception tracks them."
+                />
+              </div>
+            ) : (
+              notifications.map((n, i) => {
+                const cam = cameras.find((c) => c.id === n.camera);
+                const isEntry = n.event_type === "entered_zone";
+                return (
+                  <div key={`${n.started_at}-${i}`} className="flex items-start justify-between px-5 py-3.5 transition hover:bg-obs-1">
+                    <div className="flex items-start gap-3">
+                      <Badge tone={isEntry ? "alert" : "ok"} dot={isEntry}>
+                        {isEntry ? "entered" : "left"}
+                      </Badge>
+                      <div>
+                        <p className="text-sm text-obs-fg">
+                          {n.zone || n.camera} · <span className="capitalize">{cam?.name ?? n.camera}</span>
+                        </p>
+                        <p className="mt-0.5 text-[11px] font-mono text-obs-fg-faint">
+                          {timeAgo(new Date(n.started_at).getTime())}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <Toggle checked={s.enabled} onChange={() => toggle(s.id)} label={`toggle ${s.label}`} />
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </Card>
 
@@ -84,31 +101,33 @@ export default function Notifications() {
                 <span className="text-sm font-medium text-obs-fg">Browser web-push</span>
                 <p className="mt-0.5 text-[11px] text-obs-fg-faint">Desktop and mobile notifications</p>
               </div>
-              <Toggle checked={push} onChange={setPush} label="browser push" />
+              <Button size="xs" variant={push ? "solid" : "outline"} onClick={() => setPush((p) => !p)}>
+                {push ? "On" : "Off"}
+              </Button>
             </div>
             <p className="text-[11px] leading-relaxed text-obs-fg-faint font-mono">
-              Subscriptions register per browser; dispatches only for segments matching an enabled scope.
+              Dispatch happens for real review segments matched to every entered_zone event.
             </p>
           </Card>
 
           <Card className="p-4 space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-obs-fg-dim">
-              Recently dispatched
+              Now watching
             </p>
             <div className="space-y-2">
-              {[
-                { t: "2m ago", m: "Loitering alert in dock_entry", cam: "Loading Dock", tone: "alert" as const },
-                { t: "41m ago", m: "Face detected at doorway", cam: "Lobby Entrance", tone: "ok" as const },
-                { t: "3h ago", m: "Vehicle arrived at dock_bay", cam: "Loading Dock", tone: "warn" as const },
-              ].map((n, i) => (
-                <div key={i} className="rounded-md border border-obs-line bg-obs-1 p-2.5 transition hover:border-obs-line-strong">
+              {cameras.map((c) => (
+                <div key={c.id} className="rounded-md border border-obs-line bg-obs-1 p-2.5">
                   <div className="flex items-center justify-between">
-                    <Badge tone={n.tone}>{n.cam}</Badge>
-                    <span className="font-mono text-[10px] text-obs-fg-faint">{n.t}</span>
+                    <Badge tone={c.enabled ? "ok" : "slate"}>{c.name}</Badge>
+                    <span className="font-mono text-[10px] text-obs-fg-faint">
+                      {c.enabled ? "streaming" : "off"}
+                    </span>
                   </div>
-                  <p className="mt-1.5 text-xs text-obs-fg">{n.m}</p>
                 </div>
               ))}
+              {cameras.length === 0 && (
+                <p className="text-[11px] text-obs-fg-faint">No camera feeds configured.</p>
+              )}
             </div>
           </Card>
         </div>

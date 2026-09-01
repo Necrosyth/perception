@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card, EmptyState, Input, Modal, PageHeader, Segmented, Select } from "../components/ui";
 import { MockScene } from "../components/VideoTile";
 import { I } from "../components/icons";
-import { cameras, labels, exploreResults } from "../lib/mock";
 import type { ExploreHit } from "../lib/api";
-import { exploreSummary, searchExplore } from "../lib/api";
+import { exploreSummary, searchExplore, useCameras } from "../lib/api";
 import { timeAgo } from "../lib/utils";
 
 const searchTypes = [
@@ -13,30 +12,11 @@ const searchTypes = [
 ] as const;
 type SortType = (typeof searchTypes)[number]["value"];
 
-function mockHits(): ExploreHit[] {
-  return exploreResults.map((r) => ({
-    embedding_id: r.id,
-    track_id: Number(r.id.split("_")[1]),
-    camera: r.cameraId,
-    zone: r.zones[0] ?? null,
-    label: r.label,
-    confidence: r.score,
-    captured_at: new Date(r.start).getTime() / 1000,
-    similarity: r.score,
-    thumbnail: null,
-    model: "mock",
-  }));
-}
-
-function camName(id: string) {
-  return cameras.find((c) => c.id === id)?.name ?? id;
-}
-
 const PROMPT_SUGGESTIONS = [
-  "Forklift near loading dock",
-  "Person in red high-vis vest",
-  "Vehicle near entrance after dark",
-  "Someone waiting at the door",
+  "person near entrance",
+  "red vehicle",
+  "truck in loading area",
+  "car after dark",
 ];
 
 export default function Explore() {
@@ -47,9 +27,14 @@ export default function Explore() {
   const [selected, setSelected] = useState<ExploreHit | null>(null);
   const [similarFrom, setSimilarFrom] = useState<ExploreHit | null>(null);
 
-  const [results, setResults] = useState<ExploreHit[]>(mockHits());
+  const [results, setResults] = useState<ExploreHit[]>([]);
   const [fromApi, setFromApi] = useState(false);
   const [summary, setSummary] = useState<{ label: string; count: number }[]>([]);
+  const { cameras } = useCameras();
+  const labels = useMemo(
+    () => Array.from(new Set(summary.map((s) => s.label))).sort(),
+    [summary],
+  );
 
   const debouncedQuery = useMemo(() => query.trim(), [query]);
 
@@ -65,7 +50,7 @@ export default function Explore() {
         limit: 24,
       });
       if (cancelled) return;
-      setResults(hits ?? mockHits());
+      setResults(hits ?? []);
       setFromApi(hits !== null);
     };
     load();
@@ -83,12 +68,6 @@ export default function Explore() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  const mockSummary = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const r of exploreResults) counts.set(r.label, (counts.get(r.label) ?? 0) + 1);
-    return [...counts.entries()].map(([l, c]) => ({ label: l, count: c }));
   }, []);
 
   const showLanding = !debouncedQuery && camera === "all" && label === "all" && !similarFrom;
@@ -183,7 +162,7 @@ export default function Explore() {
             Index by detected class
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {(summary.length ? summary : mockSummary).map(({ label: lbl, count }) => (
+            {(summary).map(({ label: lbl, count }) => (
               <Card
                 key={lbl}
                 className="cursor-pointer p-4 transition hover:border-obs-accent/40 hover:bg-obs-3 group"
@@ -312,7 +291,7 @@ export default function Explore() {
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-obs-line pt-3">
               <div className="font-mono text-xs text-obs-fg-dim">
-                <span>Camera: <strong className="text-obs-fg">{camName(selected.camera)}</strong></span>
+                <span>Camera: <strong className="text-obs-fg">{cameras.find((c) => c.id === selected.camera)?.name ?? selected.camera}</strong></span>
                 <span className="mx-2">·</span>
                 <span>Similarity: <strong className="text-obs-accent-strong">{selected.similarity != null ? (selected.similarity * 100).toFixed(1) : "—"}%</strong></span>
               </div>

@@ -64,6 +64,16 @@ def embedding_id(camera: str, global_track_id: int, model: str, captured_ts: flo
     return uuid.uuid5(AINA_NAMESPACE, f"embed:{camera}:{global_track_id}:{model}:{captured_ts:.6f}")
 
 
+def segment_id(camera: str, global_track_id: int, started_ts: float) -> uuid.UUID:
+    """Deterministic uuid for a ``segments`` row.
+
+    Keyed on camera + global_track_id + the track's first-seen time so each
+    finalized track lifecycle maps to exactly one review segment, and replaying
+    the same window is an idempotent INSERT ... ON CONFLICT DO NOTHING.
+    """
+    return uuid.uuid5(AINA_NAMESPACE, f"segment:{camera}:{global_track_id}:{started_ts:.6f}")
+
+
 class _Ops:
     """SQL templates; each submitted op is a dict keyed by these op names."""
 
@@ -115,6 +125,10 @@ class _Ops:
     INSERT_EMBEDDING = (
         "INSERT INTO embeddings (id, track_id, model, vector, meta) "
         "VALUES (%s, %s, %s, %s::vector, %s::jsonb) ON CONFLICT DO NOTHING"
+    )
+    INSERT_SEGMENT = (
+        "INSERT INTO segments (id, camera_id, started_at, ended_at, labels, severity) "
+        "VALUES (%s, %s, %s, %s, %s::jsonb, %s) ON CONFLICT DO NOTHING"
     )
 
 
@@ -292,6 +306,7 @@ def _sql_for(op: dict[str, Any]) -> str | None:
         "insert_event": _Ops.INSERT_EVENT,
         "end_event": _Ops.END_EVENT,
         "insert_embedding": _Ops.INSERT_EMBEDDING,
+        "insert_segment": _Ops.INSERT_SEGMENT,
     }.get(op["op"])
 
 
@@ -349,6 +364,15 @@ def _params_for(op: dict[str, Any]) -> tuple[Any, ...]:
             op["model"],
             _vector_str(op["vector"]),
             json_dumps(op.get("meta", {})),
+        )
+    if kind == "insert_segment":
+        return (
+            op["segment_uid"],
+            op["camera_uid"],
+            op["started_at"],
+            op["ended_at"],
+            json_dumps(op["labels"]),
+            op.get("severity", "detection"),
         )
     raise ValueError(f"persistence op {kind!r} has no params mapping")
 

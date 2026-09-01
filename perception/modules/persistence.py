@@ -27,6 +27,7 @@ from ..persistence import (
     camera_id,
     embedding_id,
     event_id,
+    segment_id,
     track_uuid,
     zone_id,
 )
@@ -87,6 +88,9 @@ class Persistence(PerceptionModule):
         self._in_zone: dict[tuple[str, int], dict[str, float]] = {}
         # (camera, gid) -> last seen epoch (track finalization pruning)
         self._last_seen: dict[tuple[str, int], float] = {}
+        # (camera, gid) -> first-seen epoch + class_name, kept so each finalized
+        # track lifecycle becomes one review `segments` row with real boundaries.
+        self._first_seen: dict[tuple[str, int], tuple[float, str]] = {}
         # True when the orchestrator resolved >= 1 enabled behavior module that
         # produces "events" (e.g. behavior_loitering); sink only then.
         self._sink_events = False
@@ -187,6 +191,8 @@ class Persistence(PerceptionModule):
             live.add(key)
             self._last_seen[key] = now
             class_name = self._class_names.get(int(track.class_id), "")
+            if key not in self._first_seen:
+                self._first_seen[key] = (now, class_name)
             writer.submit(
                 {
                     "op": "upsert_track",
@@ -236,6 +242,20 @@ class Persistence(PerceptionModule):
                 continue
             if now - self._last_seen[key] > self._finalize_timeout_s:
                 writer.submit({"op": "finalize_track", "track_uid": track_uuid(*key), "ended_at": _dt(now)})
+                first = self._first_seen.pop(key, None)
+                if first is not None:
+                    first_ts, class_name = first
+                    writer.submit(
+                        {
+                            "op": "insert_segment",
+                            "segment_uid": segment_id(key[0], key[1], first_ts),
+                            "camera_uid": self._camera_uid[key[0]],
+                            "started_at": _dt(first_ts),
+                            "ended_at": _dt(now),
+                            "labels": [class_name] if class_name else [],
+                            "severity": "detection",
+                        }
+                    )
                 del self._last_seen[key]
                 self._in_zone.pop(key, None)
 

@@ -5,7 +5,6 @@
 // (`/media/api/stream.mp4?src=<name>`). When the API is unreachable the
 // callers fall back to src/lib/mock so the UI still renders standalone.
 import { useEffect, useState } from "react";
-import { cameras as mockCameras } from "./mock";
 
 export type ApiCameraRow = {
   id: string;
@@ -63,22 +62,51 @@ async function fetchJson<T>(url: string, timeoutMs = 4000): Promise<T | null> {
   }
 }
 
+async function mutateJson<T>(
+  url: string,
+  method: string,
+  body?: unknown,
+  timeoutMs = 6000,
+): Promise<T | null> {
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), timeoutMs);
+    const res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      try {
+        await res.json();
+      } catch {
+        /* ignore */
+      }
+      return null;
+    }
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function getCameras(): Promise<MediaCamera[] | null> {
   const data = await fetchJson<{ cameras?: ApiCameraRow[] }>("/api/cameras");
   if (!data || !Array.isArray(data.cameras) || data.cameras.length === 0) return null;
   return data.cameras.map((row) => {
-    const mock = mockCameras.find((c) => c.id === row.name);
-    const palette = mock?.palette ?? PALETTES[hashStr(row.name) % PALETTES.length];
+    const palette = PALETTES[hashStr(row.name) % PALETTES.length];
     return {
       id: row.name,
-      name: mock?.name ?? displayName(row.name),
+      name: displayName(row.name),
       enabled: row.enabled,
-      zones: mock?.zones ?? [],
-      hasMotion: mock?.hasMotion ?? false,
-      fps: mock?.fps ?? 0,
-      bitrate: mock?.bitrate ?? "—",
-      ptz: mock?.ptz ?? false,
-      lastActivity: mock?.lastActivity ?? Date.now(),
+      zones: [],
+      hasMotion: false,
+      fps: 0,
+      bitrate: "—",
+      ptz: false,
+      lastActivity: Date.now(),
       palette,
       source: row.source,
     };
@@ -136,16 +164,16 @@ export async function exploreSummary(): Promise<ExploreSummaryRow[] | null> {
   return data && Array.isArray(data.summary) ? data.summary : null;
 }
 
-/** Live camera list with mock fallback; refresh every `intervalMs`. */
+/** Live camera list with graceful empty-until-loaded fallback. */
 export function useCameras(intervalMs = 10000): { cameras: MediaCamera[]; fromApi: boolean } {
-  const [cameras, setCameras] = useState<MediaCamera[]>(mockCameras);
+  const [cameras, setCameras] = useState<MediaCamera[]>([]);
   const [fromApi, setFromApi] = useState(false);
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
       const real = await getCameras();
       if (cancelled) return;
-      setCameras(real ?? mockCameras);
+      setCameras(real ?? []);
       setFromApi(real !== null);
     };
     tick();
@@ -156,4 +184,117 @@ export function useCameras(intervalMs = 10000): { cameras: MediaCamera[]; fromAp
     };
   }, [intervalMs]);
   return { cameras, fromApi };
+}
+
+// --------------------------------------------------------------------------- //
+// Review segments — real rows written by perception /api/segments
+// --------------------------------------------------------------------------- //
+
+export type Segment = {
+  id: string;
+  camera: string;
+  camera_id: string;
+  label: string;
+  labels: string;
+  started_at: string;
+  ended_at: string;
+  severity: string;
+  reviewed: boolean;
+};
+
+export async function getSegments(
+  params: { camera?: string; label?: string; from?: string; to?: string; limit?: number } = {},
+): Promise<Segment[] | null> {
+  const sp = new URLSearchParams();
+  if (params.camera) sp.set("camera", params.camera);
+  if (params.label) sp.set("label", params.label);
+  if (params.from) sp.set("from", params.from);
+  if (params.to) sp.set("to", params.to);
+  sp.set("limit", String(params.limit ?? 200));
+  const data = await fetchJson<{ segments?: Segment[] }>(`/api/segments?${sp.toString()}`, 10000);
+  return data && Array.isArray(data.segments) ? data.segments : null;
+}
+
+export async function getSegment(id: string): Promise<Segment | null> {
+  const data = await fetchJson<{ segments?: Segment[] }>(`/api/segments/${id}`, 8000);
+  return data && Array.isArray(data.segments) && data.segments.length ? data.segments[0] : null;
+}
+
+export async function getSegmentPlay(id: string) {
+  return fetchJson<{
+    recording_dir?: string;
+    recordings?: string[];
+    live_url?: string;
+    camera?: string;
+  }>(`/api/segments/${id}/play`, 8000);
+}
+
+export async function markSegmentReviewed(id: string, reviewed: boolean): Promise<boolean> {
+  const res = await mutateJson<{ reviewed?: boolean }>(
+    `/api/segments/${id}/reviewed?reviewed=${reviewed}`,
+    "POST",
+  );
+  return res?.reviewed === reviewed;
+}
+
+// --------------------------------------------------------------------------- //
+// Zones — real rows from /api/zones
+// --------------------------------------------------------------------------- //
+
+export type ZoneRow = {
+  id: string;
+  camera: string;
+  name: string;
+  polygon: number[][];
+  enabled?: boolean;
+};
+
+export async function getZones(): Promise<ZoneRow[] | null> {
+  const data = await fetchJson<{ zones?: ZoneRow[] }>("/api/zones", 8000);
+  return data && Array.isArray(data.zones) ? data.zones : null;
+}
+
+export async function createZone(camera: string, name: string, polygon: number[][]): Promise<ZoneRow | null> {
+  const sp = new URLSearchParams({ camera, name });
+  return mutateJson<ZoneRow>(`/api/zones?${sp.toString()}`, "POST", { polygon });
+}
+
+export async function deleteZone(id: string): Promise<boolean> {
+  const res = await mutateJson<{ deleted?: boolean }>(`/api/zones/${id}`, "DELETE");
+  return res?.deleted === true;
+}
+
+// --------------------------------------------------------------------------- //
+// System + notifications — real aggregations
+// --------------------------------------------------------------------------- //
+
+export type SystemSummary = {
+  camera_count: number;
+  track_count: number;
+  detection_count: number;
+  event_count: number;
+  segment_count: number;
+  embedding_count: number;
+  zones: string[];
+  perception_rpc: boolean;
+};
+
+export async function getSystem(): Promise<SystemSummary | null> {
+  return fetchJson<SystemSummary>("/api/system", 8000);
+}
+
+export type Notification = {
+  camera: string;
+  zone: string | null;
+  event_type: string;
+  started_at: string;
+  severity: string;
+};
+
+export async function getNotifications(limit = 20): Promise<Notification[] | null> {
+  const data = await fetchJson<{ notifications?: Notification[] }>(
+    `/api/notifications?limit=${limit}`,
+    8000,
+  );
+  return data && Array.isArray(data.notifications) ? data.notifications : null;
 }

@@ -7,7 +7,7 @@ services:
     ports:
       - "${GO2RTC_PORT:-1984}:1984"
     volumes:
-      - ./media/go2rtc.yaml:/config/go2rtc.yaml:ro
+      - ../media/go2rtc.yaml:/config/go2rtc.yaml:ro
     logging:
       options:
         max-size: "10m"
@@ -43,9 +43,25 @@ services:
       POSTGRES_PORT: "5432"
     ports:
       - "${API_PORT:-5000}:5000"
+    volumes:
+      - recordings:/recordings:ro
     depends_on:
       postgres:
         condition: service_healthy
+
+  recorder:
+    image: alexxit/go2rtc:latest
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/config/record.sh"]
+    volumes:
+      - ../media/record.sh:/config/record.sh:ro
+      - recordings:/recordings
+    environment:
+      GO2RTC_RTSP_PORT: "8554"
+      RECORD_DIR: /recordings
+      SEGMENT_SECONDS: "60"
+    depends_on:
+      - media
 
   dashboard:
     build:
@@ -54,6 +70,8 @@ services:
     restart: unless-stopped
     ports:
       - "${DASHBOARD_PORT:-3000}:3000"
+    volumes:
+      - recordings:/recordings:ro
     depends_on:
       - api
       - media
@@ -100,3 +118,4 @@ services:
 volumes:
   pgdata:
   engine_cache:
+  recordings:

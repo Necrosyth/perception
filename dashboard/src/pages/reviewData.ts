@@ -1,32 +1,12 @@
-import { cameras, calendarDays, reviewSegments } from "../lib/mock";
-import type { Label } from "../lib/mock";
-import type { Severity } from "../lib/mock";
+// Real-data types + derived constants for the Review journal. The mock
+// `calendars`/`labels` are gone — segments come live from /api/segments.
 
-export type { Label, Severity };
+export type Severity = "alert" | "detection" | "significant_motion" | "motion";
 
-export const labels: Label[] = [
-  "person", "car", "truck", "forklift", "box", "pallet",
-  "face", "license_plate", "loitering", "vehicle",
+// COCO80 label set surfaced from the perception detector (see api/search).
+export const labels: string[] = [
+  "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train",
+  "truck", "boat", "traffic light",
 ];
-
-export const calendars = {
-  cameras,
-  days: calendarDays.map((d) => ({
-    yyyymmdd: d.yyyymmdd,
-    alerts: d.alerts,
-    detections: d.detections,
-  })),
-  segments: reviewSegments.map((s) => ({
-    id: s.id,
-    cameraId: s.cameraId,
-    label: s.label,
-    severity: s.severity as Severity,
-    start: s.start,
-    end: s.end,
-    zones: s.zones,
-    reviewed: s.reviewed,
-    score: s.score,
-  })),
-};
 
 export const severitySort = { alert: 0, detection: 1, significant_motion: 2 } as const;

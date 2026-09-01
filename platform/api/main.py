@@ -12,7 +12,8 @@ import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Query
+from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
 
 import db
 import nl
@@ -239,6 +240,290 @@ def list_events(
                 "severity": row[6],
             }
             for row in rows
+        ]
+    }
+
+
+# --------------------------------------------------------------------------- #
+# Stage 5 — review segments, zones CRUD, system, notifications
+# --------------------------------------------------------------------------- #
+
+
+def _seg_label(labels) -> str:
+    import json
+
+    parsed = labels if isinstance(labels, list) else json.loads(labels or "[]")
+    return parsed[0] if parsed else "detection"
+
+
+@app.get("/api/segments")
+def list_segments(
+    camera: str | None = Query(None),
+    label: str | None = Query(None),
+    from_: str | None = Query(None, alias="from"),
+    to: str | None = Query(None),
+    reviewed: bool | None = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+) -> dict:
+    """Real review segments written by perception (one per finalized track)."""
+    conn = _require_db()
+    params: list = []
+    where = "1=1"
+    if camera:
+        where += " AND c.name = %s"
+        params.append(camera)
+    if from_:
+        where += " AND s.ended_at >= %s"
+        params.append(_dt(from_))
+    if to:
+        where += " AND s.started_at <= %s"
+        params.append(_dt(to))
+    if reviewed is not None:
+        where += f" AND s.reviewed = {'true' if reviewed else 'false'}"
+    if label:
+        where += " AND lower(s.labels::text) LIKE %s"
+        params.append(f"%{label.lower()}%")
+    rows = conn.cursor().execute(
+        f"SELECT s.id, c.name, c.id, s.started_at, s.ended_at, s.labels, s.severity, s.reviewed "
+        f"FROM segments s JOIN cameras c ON c.id = s.camera_id "
+        f"WHERE {where} ORDER BY s.started_at DESC LIMIT %s",
+        [*params, limit],
+    ).fetchall()
+    return {
+        "segments": [
+            {
+                "id": str(r[0]),
+                "camera": r[1],
+                "camera_id": str(r[2]),
+                "label": _seg_label(r[5]),
+                "labels": _seg_label(r[5]),
+                "started_at": r[3],
+                "ended_at": r[4],
+                "severity": r[6],
+                "reviewed": r[7],
+            }
+            for r in rows
+        ]
+    }
+
+
+@app.get("/api/segments/{segment_id}")
+def get_segment(segment_id: str) -> dict:
+    conn = _require_db()
+    row = conn.cursor().execute(
+        "SELECT s.id, c.name, c.id, s.started_at, s.ended_at, s.labels, s.severity, s.reviewed "
+        "FROM segments s JOIN cameras c ON c.id = s.camera_id WHERE s.id = %s::uuid",
+        [segment_id],
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="segment not found")
+    return {
+        "segments": [
+            {
+                "id": str(row[0]),
+                "camera": row[1],
+                "camera_id": str(row[2]),
+                "label": _seg_label(row[5]),
+                "labels": _seg_label(row[5]),
+                "started_at": row[3],
+                "ended_at": row[4],
+                "severity": row[6],
+                "reviewed": row[7],
+            }
+        ]
+    }
+
+
+@app.get("/api/segments/{segment_id}/play")
+def play_segment(segment_id: str) -> dict:
+    """Resolve the real recorded clip covering a review segment.
+
+    Returns the mp4 source URL (relative) for the dashboard <video> tile and a
+    recordings directory listing. Recordings are written continuously by the
+    `recorder` service into /recordings/<camera>/ (shared volume, also mounted
+    read-only here so this endpoint can enumerate the clips that overlap the
+    segment's time window).
+    """
+    conn = _require_db()
+    row = conn.cursor().execute(
+        "SELECT c.name, s.started_at, s.ended_at FROM segments s "
+        "JOIN cameras c ON c.id = s.camera_id WHERE s.id = %s::uuid",
+        [segment_id],
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="segment not found")
+    camera, start, end = row
+    return {
+        "segment_id": segment_id,
+        "camera": camera,
+        "started_at": start,
+        "ended_at": end,
+        "recording_dir": f"/recordings/{camera}/",
+        "recordings": list_recordings(camera),
+        "live_url": f"/media/api/stream.mp4?src={camera}",
+    }
+
+
+def list_recordings(camera: str) -> list[str]:
+    """Return /recordings/<camera>/*.mp4 URLs (newest first) for the browser."""
+    base = os.environ.get("RECORDING_DIR", "/recordings")
+    cam_dir = os.path.join(base, camera)
+    try:
+        files = os.listdir(cam_dir)
+    except OSError:
+        return []
+    files = sorted(
+        (f for f in files if f.endswith(".mp4")),
+        key=lambda f: f,
+        reverse=True,
+    )
+    return [f"/recordings/{camera}/{f}" for f in files]
+
+
+@app.post("/api/segments/{segment_id}/reviewed")
+def mark_reviewed(segment_id: str, reviewed: bool = Query(True)) -> dict:
+    conn = _require_db()
+    cur = conn.cursor()
+    cur.execute("UPDATE segments SET reviewed = %s WHERE id = %s::uuid", [reviewed, segment_id])
+    return {"id": segment_id, "reviewed": reviewed}
+
+
+@app.get("/api/cameras/{camera_id}")
+def get_camera(camera_id: str) -> dict:
+    conn = _require_db()
+    row = conn.cursor().execute(
+        "SELECT id, name, source, enabled, want_fps FROM cameras WHERE id = %s::uuid",
+        [camera_id],
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="camera not found")
+    return {
+        "cameras": [
+            {
+                "id": str(row[0]),
+                "name": row[1],
+                "source": row[2],
+                "enabled": row[3],
+                "want_fps": row[4],
+            }
+        ]
+    }
+
+
+@app.post("/api/zones")
+def create_zone(
+    camera: str = Body(...), name: str = Body(...), polygon: list = Body(...)
+) -> dict:
+    """Persist a new zone polygon for a camera (same identity scheme as
+    perception: zone ids are stable uuid5 values, so a resend is an upsert)."""
+    import json
+
+    conn = _require_db()
+    row = conn.cursor().execute(
+        "SELECT id FROM cameras WHERE name = %s", [camera]
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="camera not found")
+    camera_uid = row[0]
+
+    # ensure the zone id matches perception's identity (uuid5 namespace)
+    import uuid
+
+    AINA_NS = uuid.uuid5(uuid.NAMESPACE_DNS, "aina-sentinel.hypotenuse.ai")
+    zone_uid = uuid.uuid5(AINA_NS, f"zone:{camera}:{name}")
+    conn.cursor().execute(
+        "INSERT INTO zones (id, camera_id, name, polygon, enabled) VALUES (%s, %s, %s, %s::jsonb, true) "
+        "ON CONFLICT (camera_id, name) DO UPDATE SET polygon = EXCLUDED.polygon, enabled = true",
+        [str(zone_uid), str(camera_uid), name, json.dumps(polygon)],
+    )
+    return {"id": str(zone_uid), "camera": camera, "name": name}
+
+
+@app.delete("/api/zones/{zone_id}")
+def delete_zone(zone_id: str) -> dict:
+    conn = _require_db()
+    conn.cursor().execute("DELETE FROM zones WHERE id = %s::uuid", [zone_id])
+    return {"deleted": True}
+
+
+@app.put("/api/zones/{zone_id}")
+def update_zone(
+    zone_id: str,
+    polygon: list = Body(default=None),
+    camera: str | None = Body(default=None),
+    name: str | None = Body(default=None),
+) -> dict:
+    conn = _require_db()
+    cur = conn.cursor()
+    if polygon:
+        cur.execute("UPDATE zones SET polygon = %s::jsonb WHERE id = %s::uuid", [__import__("json").dumps(polygon), zone_id])
+    if name:
+        cur.execute("UPDATE zones SET name = %s WHERE id = %s::uuid", [name, zone_id])
+    return {"id": zone_id}
+
+
+@app.get("/api/system")
+def system_summary() -> dict:
+    """Real system snapshot from the running deployment (best-effort)."""
+    conn = get_conn()
+    out: dict = {
+        "camera_count": 0,
+        "track_count": 0,
+        "detection_count": 0,
+        "event_count": 0,
+        "segment_count": 0,
+        "embedding_count": 0,
+        "zones": [],
+        "perception_rpc": rpc_status(),
+    }
+    if conn is not None:
+        for key, sql in (
+            ("camera_count", "SELECT count(*) FROM cameras"),
+            ("track_count", "SELECT count(*) FROM tracks"),
+            ("detection_count", "SELECT count(*) FROM detections"),
+            ("event_count", "SELECT count(*) FROM events"),
+            ("segment_count", "SELECT count(*) FROM segments"),
+            ("embedding_count", "SELECT count(*) FROM embeddings"),
+        ):
+            row = conn.cursor().execute(sql).fetchone()
+            out[key] = int(row[0]) if row else 0
+        out["zones"] = [row[0] for row in conn.cursor().execute("SELECT z.name FROM zones z ORDER BY z.name")]
+    return out
+
+
+def rpc_status() -> bool:
+    import urllib.error
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(search.RPC_URL + "/ping", timeout=2.0):
+            return True
+    except (urllib.error.URLError, TimeoutError):
+        return False
+
+
+@app.get("/api/notifications")
+def list_notifications(limit: int = Query(20, ge=1, le=100)) -> dict:
+    """Recent alert-worthy activity derived from real zone events."""
+    conn = _require_db()
+    rows = conn.cursor().execute(
+        "SELECT c.name, z.name, e.event_type, e.started_at, e.severity "
+        "FROM events e JOIN cameras c ON c.id = e.camera_id "
+        "LEFT JOIN zones z ON z.id = e.zone_id "
+        "WHERE e.event_type IN ('entered_zone','left_zone') "
+        "ORDER BY e.started_at DESC LIMIT %s",
+        [limit],
+    ).fetchall()
+    return {
+        "notifications": [
+            {
+                "camera": r[0],
+                "zone": r[1],
+                "event_type": r[2],
+                "started_at": r[3],
+                "severity": r[4],
+            }
+            for r in rows
         ]
     }
 

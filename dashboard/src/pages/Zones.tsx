@@ -1,36 +1,61 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card, Input, PageHeader, Select } from "../components/ui";
 import { I } from "../components/icons";
-import { cameras } from "../lib/mock";
-
-type Zone = { name: string; color: string; points: [number, number][]; rules?: string };
-
-const ZONES: Zone[] = [
-  { name: "dock_entry", color: "#C2A878", points: [[8, 30], [45, 26], [52, 74], [10, 78]], rules: "Intrusion + Loitering" },
-  { name: "dock_bay", color: "#D3A05F", points: [[52, 44], [92, 40], [94, 86], [52, 86]], rules: "Vehicle Dwell" },
-];
+import { createZone, deleteZone, getZones, type ZoneRow, useCameras } from "../lib/api";
 
 const ZONE_COLORS = ["#C2A878", "#8AA3AD", "#D3A05F", "#C06F66", "#8FAE8D"];
 
 export default function Zones() {
-  const [camera, setCamera] = useState("loading_dock");
-  const cam = useMemo(() => cameras.find((c) => c.id === camera)!, [camera]);
-  const [zones, setZones] = useState<Zone[]>(ZONES);
+  const { cameras } = useCameras();
+  const [camera, setCamera] = useState<string>("");
+  const [zones, setZones] = useState<ZoneRow[]>([]);
   const [draft, setDraft] = useState<[number, number][]>([]);
   const [draftName, setDraftName] = useState("");
   const [draftColor, setDraftColor] = useState("#8AA3AD");
   const [mode, setMode] = useState<"view" | "draw">("view");
   const [hover, setHover] = useState<[number, number] | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
-  const saveDraft = () => {
-    if (draft.length < 3 || !draftName.trim()) return;
-    setZones((z) => [
-      ...z,
-      { name: draftName.trim().toLowerCase().replace(/\s+/g, "_"), color: draftColor, points: draft, rules: "Standard Track Gate" },
-    ]);
+  useEffect(() => {
+    if (cameras.length && !camera) setCamera(cameras[0].id);
+  }, [cameras, camera]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const z = await getZones();
+      if (cancelled) return;
+      if (z) setZones(z);
+      setLoaded(true);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const camZones = useMemo(
+    () => zones.filter((z) => z.camera === camera),
+    [zones, camera],
+  );
+
+  const saveDraft = async () => {
+    if (draft.length < 3 || !draftName.trim() || !camera) return;
+    const name = draftName.trim().toLowerCase().replace(/\s+/g, "_");
+    const created = await createZone(camera, name, draft);
+    if (created) {
+      const z = await getZones();
+      if (z) setZones(z);
+    }
     setDraft([]);
     setDraftName("");
     setMode("view");
+  };
+
+  const removeZone = async (id: string) => {
+    await deleteZone(id);
+    const z = await getZones();
+    if (z) setZones(z);
   };
 
   return (
@@ -100,45 +125,43 @@ export default function Zones() {
                 </radialGradient>
               </defs>
 
-              {/* wall tone */}
               <rect width="320" height="180" fill="#161c25" />
-              {/* floor plane (darker, set off by a seam) */}
               <rect y="72" width="320" height="180" fill="#0f141b" />
               <rect y="72" width="320" height="1" fill="#ffffff" opacity="0.07" />
-              {/* incidental structure + light pool + vignette */}
               <rect x="52" y="0" width="1.5" height="180" fill="#ffffff" opacity="0.03" />
               <rect x="238" y="0" width="1.5" height="180" fill="#ffffff" opacity="0.03" />
               <rect width="320" height="180" fill="url(#zlight)" />
               <rect width="320" height="180" fill="url(#zvignette)" />
 
-              {/* Render existing zones */}
-              {zones.map((z) => (
-                <g key={z.name}>
-                  <polygon
-                    points={z.points.map((p) => p.join(",")).join(" ")}
-                    fill={z.color}
-                    fillOpacity="0.16"
-                    stroke={z.color}
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                  />
-                  {z.points.map((p, i) => (
-                    <circle key={i} cx={p[0]} cy={p[1]} r="2" fill={z.color} />
-                  ))}
-                  <text
-                    x={z.points[0][0] + 5}
-                    y={z.points[0][1] - 5}
-                    fontSize="7"
-                    fill="#ece7dd"
-                    fontWeight="500"
-                    className="font-mono"
-                  >
-                    {z.name.toUpperCase()}
-                  </text>
-                </g>
-              ))}
+              {camZones.map((z, ci) => {
+                const color = ZONE_COLORS[ci % ZONE_COLORS.length];
+                return (
+                  <g key={z.id}>
+                    <polygon
+                      points={z.polygon.map((p) => p.join(",")).join(" ")}
+                      fill={color}
+                      fillOpacity="0.16"
+                      stroke={color}
+                      strokeWidth="1.5"
+                      strokeLinejoin="round"
+                    />
+                    {z.polygon.map((p, i) => (
+                      <circle key={i} cx={p[0]} cy={p[1]} r="2" fill={color} />
+                    ))}
+                    <text
+                      x={z.polygon[0][0] + 5}
+                      y={z.polygon[0][1] - 5}
+                      fontSize="7"
+                      fill="#ece7dd"
+                      fontWeight="500"
+                      className="font-mono"
+                    >
+                      {z.name.toUpperCase()}
+                    </text>
+                  </g>
+                );
+              })}
 
-              {/* Draft polygon */}
               {draft.length > 0 && (
                 <>
                   <polygon
@@ -156,7 +179,6 @@ export default function Zones() {
                 </>
               )}
 
-              {/* Cursor indicator */}
               {mode === "draw" && hover && (
                 <circle cx={hover[0]} cy={hover[1]} r="3" fill="none" stroke="#8aa3ad" strokeWidth="1" />
               )}
@@ -164,7 +186,7 @@ export default function Zones() {
 
             <div className="absolute left-3 top-3 flex items-center gap-2">
               <Badge tone="neutral" className="bg-black/50">
-                {cam.name}
+                {camera}
               </Badge>
               {hover && mode === "draw" && (
                 <span className="rounded bg-black/60 px-2 py-0.5 font-mono text-[10px] text-obs-info backdrop-blur-sm">
@@ -189,33 +211,35 @@ export default function Zones() {
               <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-obs-fg-dim">
                 Defined zones
               </p>
-              <Badge tone="slate">{zones.length} active</Badge>
+              <Badge tone="slate">{loaded ? zones.length : "…"}</Badge>
             </div>
 
             <div className="space-y-2">
-              {zones.map((z) => (
+              {zones.length === 0 && loaded && (
+                <p className="text-xs text-obs-fg-faint">No zones persisted yet.</p>
+              )}
+              {zones.map((z, ci) => (
                 <div
-                  key={z.name}
+                  key={z.id}
                   className="flex items-center justify-between rounded-md border border-obs-line bg-obs-1 p-3 transition hover:border-obs-line-strong"
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="h-3 w-3 rounded-full" style={{ background: z.color }} />
+                    <span className="h-3 w-3 rounded-full" style={{ background: ZONE_COLORS[ci % ZONE_COLORS.length] }} />
                     <div>
                       <p className="text-xs font-medium text-obs-fg font-mono">{z.name}</p>
-                      <p className="text-[10px] text-obs-fg-faint font-mono">{z.points.length} vertices · {z.rules}</p>
+                      <p className="text-[10px] text-obs-fg-faint font-mono">{z.camera} · {z.polygon.length} vertices</p>
                     </div>
                   </div>
                   <Button
                     size="xs"
                     variant="ghost"
                     className="text-obs-alert hover:text-obs-alert"
-                    onClick={() => setZones((zs) => zs.filter((x) => x !== z))}
+                    onClick={() => removeZone(z.id)}
                   >
                     Delete
                   </Button>
                 </div>
               ))}
-              {zones.length === 0 && <p className="text-xs text-obs-fg-faint">No zones defined yet.</p>}
             </div>
           </Card>
 

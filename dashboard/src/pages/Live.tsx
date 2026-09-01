@@ -103,15 +103,6 @@ export default function Live() {
               timestamp: c.lastActivity,
               live: c.enabled,
               streamUrl: fromApi && c.enabled ? streamUrl(c.id) : undefined,
-              objects:
-                !fromApi && c.hasMotion && c.name === "Warehouse — East"
-                  ? [
-                      { label: "person", box: [42, 34, 9, 22], color: "#C2A878", score: 0.94 },
-                      { label: "forklift", box: [58, 46, 16, 14], color: "#D3A05F", score: 0.88 },
-                    ]
-                  : !fromApi && c.name === "Lobby Entrance"
-                    ? [{ label: "person", box: [30, 22, 8, 24], color: "#C2A878", score: 0.96 }]
-                    : undefined,
             }}
           />
         ))}
