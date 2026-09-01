@@ -91,6 +91,8 @@ class Persistence(PerceptionModule):
         # (camera, gid) -> first-seen epoch + class_name, kept so each finalized
         # track lifecycle becomes one review `segments` row with real boundaries.
         self._first_seen: dict[tuple[str, int], tuple[float, str]] = {}
+        # (camera, gid) -> latest base64 JPEG thumbnail of the track's bbox crop
+        self._thumbnails: dict[tuple[str, int], str] = {}
         # True when the orchestrator resolved >= 1 enabled behavior module that
         # produces "events" (e.g. behavior_loitering); sink only then.
         self._sink_events = False
@@ -193,6 +195,9 @@ class Persistence(PerceptionModule):
             class_name = self._class_names.get(int(track.class_id), "")
             if key not in self._first_seen:
                 self._first_seen[key] = (now, class_name)
+            thumb = track.data.get("thumbnail_b64") if track.data else None
+            if thumb:
+                self._thumbnails[key] = thumb
             writer.submit(
                 {
                     "op": "upsert_track",
@@ -254,6 +259,7 @@ class Persistence(PerceptionModule):
                             "ended_at": _dt(now),
                             "labels": [class_name] if class_name else [],
                             "severity": "detection",
+                            "thumbnail": self._thumbnails.pop(key, None),
                         }
                     )
                 del self._last_seen[key]

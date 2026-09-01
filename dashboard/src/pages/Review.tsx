@@ -260,23 +260,34 @@ export default function Review() {
               <Card key={s.id} className="overflow-hidden group hover:border-obs-line-strong">
                 <Link to={`/review/${s.id}`} className="block relative overflow-hidden">
                   <div className="relative h-36 overflow-hidden">
-                    <MockScene c1={cam?.palette[0] ?? "#1d222a"} c2={cam?.palette[1] ?? "#161a20"} />
+                    {s.thumbnail ? (
+                      <img
+                        src={s.thumbnail}
+                        alt={s.label}
+                        className="absolute inset-0 h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <MockScene c1={cam?.palette[0] ?? "#1d222a"} c2={cam?.palette[1] ?? "#161a20"} />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/45" />
 
-                    <div
-                      className="absolute rounded-sm border"
-                      style={{
-                        left: "38%", top: "46%", width: "34%", height: "30%",
-                        borderColor: "var(--color-obs-accent)",
-                      }}
-                    >
-                      <span
-                        className="absolute -top-4.5 left-0 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider"
-                        style={{ background: "#c2a878", color: "#0c0e11" }}
+                    {!s.thumbnail && (
+                      <div
+                        className="absolute rounded-sm border"
+                        style={{
+                          left: "38%", top: "46%", width: "34%", height: "30%",
+                          borderColor: "var(--color-obs-accent)",
+                        }}
                       >
-                        {s.label}
-                      </span>
-                    </div>
+                        <span
+                          className="absolute -top-4.5 left-0 px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider"
+                          style={{ background: "#c2a878", color: "#0c0e11" }}
+                        >
+                          {s.label}
+                        </span>
+                      </div>
+                    )}
 
                     <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5 z-10">
                       <Badge tone={isAlert ? "alert" : s.severity === "detection" ? "warn" : "ok"} dot={isAlert}>

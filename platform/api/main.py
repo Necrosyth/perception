@@ -269,6 +269,19 @@ def _seg_labels(labels) -> list[str]:
     return labels if isinstance(labels, list) else json.loads(labels or "[]")
 
 
+def _seg_thumbnail(thumb) -> str | None:
+    if not thumb:
+        return None
+    if isinstance(thumb, str):
+        data = json.loads(thumb or "{}")
+    else:
+        data = thumb
+    b64 = data.get("b64")
+    if b64:
+        return "data:image/jpeg;base64," + b64
+    return None
+
+
 @app.get("/api/segments")
 def list_segments(
     camera: str | None = Query(None),
@@ -297,7 +310,7 @@ def list_segments(
         where += " AND lower(s.labels::text) LIKE %s"
         params.append(f"%{label.lower()}%")
     rows = conn.cursor().execute(
-        f"SELECT s.id, c.name, c.id, s.started_at, s.ended_at, s.labels, s.severity, s.reviewed "
+        f"SELECT s.id, c.name, c.id, s.started_at, s.ended_at, s.labels, s.severity, s.reviewed, s.thumbnail "
         f"FROM segments s JOIN cameras c ON c.id = s.camera_id "
         f"WHERE {where} ORDER BY s.started_at DESC LIMIT %s",
         [*params, limit],
@@ -314,6 +327,7 @@ def list_segments(
                 "ended_at": r[4],
                 "severity": r[6],
                 "reviewed": r[7],
+                "thumbnail": _seg_thumbnail(r[8]),
             }
             for r in rows
         ]
@@ -324,7 +338,7 @@ def list_segments(
 def get_segment(segment_id: str) -> dict:
     conn = _require_db()
     row = conn.cursor().execute(
-        "SELECT s.id, c.name, c.id, s.started_at, s.ended_at, s.labels, s.severity, s.reviewed "
+        "SELECT s.id, c.name, c.id, s.started_at, s.ended_at, s.labels, s.severity, s.reviewed, s.thumbnail "
         "FROM segments s JOIN cameras c ON c.id = s.camera_id WHERE s.id = %s::uuid",
         [segment_id],
     ).fetchone()
@@ -342,6 +356,7 @@ def get_segment(segment_id: str) -> dict:
                 "ended_at": row[4],
                 "severity": row[6],
                 "reviewed": row[7],
+                "thumbnail": _seg_thumbnail(row[8]),
             }
         ]
     }

@@ -21,9 +21,13 @@ No module imports another module — only capabilities (see base.py docstring).
 """
 from __future__ import annotations
 
+import base64
 import logging
 from dataclasses import dataclass, field
 from typing import Any
+
+import numpy as np
+import cv2
 
 from ..smoothing import BoxOneEuro, KalmanCV
 from ..trackers import TrackState, TrackerBackend, TrackerError, TrackerRegistry
@@ -66,6 +70,37 @@ class Tracks:
     frame_idx: int
     timestamp: float
     measured_fps: dict[str, float] = field(default_factory=dict)
+
+
+def _track_thumbnail(frame: Frame, render) -> str | None:
+    """Crop the detected bbox from the raw frame and encode as a base64 JPEG.
+
+    Falls back to the whole frame when the box is invalid or missing.
+    """
+    image = getattr(frame, "image", None)
+    if image is None:
+        return None
+    try:
+        if render is not None:
+            x1, y1, x2, y2 = (int(round(v)) for v in render)
+            h, w = image.shape[:2]
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(w, x2), min(h, y2)
+            if x2 - x1 < 4 or y2 - y1 < 4:
+                crop = image
+            else:
+                crop = image[y1:y2, x1:x2]
+        else:
+            crop = image
+        crop = np.ascontiguousarray(crop)
+        if crop.dtype != np.uint8:
+            crop = (crop - crop.min()).astype(np.uint8)
+        ok, buf = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 72])
+        if not ok:
+            return None
+        return base64.b64encode(buf.tobytes()).decode("ascii")
+    except Exception:
+        return None
 
 
 class Tracking(PerceptionModule):
@@ -185,6 +220,7 @@ class Tracking(PerceptionModule):
             render = euro.apply(box, frame.timestamp)
 
         self._last_render[(frame.source, gid)] = render
+        data = _track_thumbnail(frame, render)
         return Track(
             track_id=gid,
             source=frame.source,
@@ -197,6 +233,8 @@ class Tracking(PerceptionModule):
             coasted=coasted,
             last_frame_idx=frame.frame_id,
             last_timestamp=frame.timestamp,
+            # carry a real image of the detected object (last observed crop wins)
+            data={"thumbnail_b64": data},
         )
 
     def _coast(self, frame: Frame, gid: int, st: TrackState, dt: float) -> tuple[float, float, float, float]:

@@ -111,6 +111,12 @@ export default function RecordingDetail() {
                   onPlay={() => setPlaying(true)}
                   onPause={() => setPlaying(false)}
                 />
+              ) : seg.thumbnail ? (
+                <img
+                  src={seg.thumbnail}
+                  alt={seg.label}
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
               ) : (
                 <EmptyState title="No recording yet" hint="Recording is continuous; a clip will be available shortly." />
               )}

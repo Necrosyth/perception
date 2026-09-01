@@ -200,6 +200,7 @@ export type Segment = {
   ended_at: string;
   severity: string;
   reviewed: boolean;
+  thumbnail: string | null;
 };
 
 export async function getSegments(

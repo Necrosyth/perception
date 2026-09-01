@@ -127,8 +127,8 @@ class _Ops:
         "VALUES (%s, %s, %s, %s::vector, %s::jsonb) ON CONFLICT DO NOTHING"
     )
     INSERT_SEGMENT = (
-        "INSERT INTO segments (id, camera_id, started_at, ended_at, labels, severity) "
-        "VALUES (%s, %s, %s, %s, %s::jsonb, %s) ON CONFLICT DO NOTHING"
+        "INSERT INTO segments (id, camera_id, started_at, ended_at, labels, severity, thumbnail) "
+        "VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s::jsonb) ON CONFLICT DO NOTHING"
     )
 
 
@@ -373,6 +373,7 @@ def _params_for(op: dict[str, Any]) -> tuple[Any, ...]:
             op["ended_at"],
             json_dumps(op["labels"]),
             op.get("severity", "detection"),
+            json_dumps({"b64": op["thumbnail"]}) if op.get("thumbnail") else json_dumps({}),
         )
     raise ValueError(f"persistence op {kind!r} has no params mapping")
 
