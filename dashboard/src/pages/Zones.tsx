@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card, Input, PageHeader, Select } from "../components/ui";
 import { I } from "../components/icons";
-import { createZone, deleteZone, getZones, type ZoneRow, useCameras } from "../lib/api";
+import { createZone, deleteZone, getZones, streamUrl, type ZoneRow, useCameras } from "../lib/api";
 
 const ZONE_COLORS = ["#C2A878", "#8AA3AD", "#D3A05F", "#C06F66", "#8FAE8D"];
 
@@ -15,6 +15,7 @@ export default function Zones() {
   const [mode, setMode] = useState<"view" | "draw">("view");
   const [hover, setHover] = useState<[number, number] | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     if (cameras.length && !camera) setCamera(cameras[0].id);
@@ -95,22 +96,40 @@ export default function Zones() {
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <Card className="relative overflow-hidden p-1 border-obs-line bg-obs-1">
           <div className="relative aspect-video overflow-hidden rounded bg-black">
+            {camera && streamUrl(camera) && !videoFailed ? (
+              <video
+                className="absolute inset-0 z-0 h-full w-full bg-black object-cover"
+                src={streamUrl(camera)}
+                autoPlay
+                muted
+                loop
+                playsInline
+                onError={() => setVideoFailed(true)}
+              />
+            ) : (
+              <div className="absolute inset-0 z-0 h-full w-full bg-[#161c25]">
+                <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 70% 18%, rgba(255,255,255,0.10) 0%, transparent 75%)" }} />
+                <div className="absolute inset-0" style={{ background: "radial-gradient(circle, transparent 70%, rgba(0,0,0,0.55) 100%)" }} />
+              </div>
+            )}
+
             <svg
-              viewBox="0 0 320 180"
-              className={`block w-full h-full ${mode === "draw" ? "cursor-crosshair" : "cursor-default"}`}
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              className={`block relative z-10 w-full h-full ${mode === "draw" ? "cursor-crosshair" : "cursor-default"}`}
               onClick={(e) => {
                 if (mode !== "draw") return;
                 const r = e.currentTarget.getBoundingClientRect();
-                const x = ((e.clientX - r.left) / r.width) * 320;
-                const y = ((e.clientY - r.top) / r.height) * 180;
-                setDraft((d) => [...d, [Math.round(x), Math.round(y)]]);
+                const x = ((e.clientX - r.left) / r.width) * 100;
+                const y = ((e.clientY - r.top) / r.height) * 100;
+                setDraft((d) => [...d, [x, y]]);
               }}
               onMouseMove={(e) => {
                 if (mode !== "draw") return;
                 const r = e.currentTarget.getBoundingClientRect();
                 setHover([
-                  Math.round(((e.clientX - r.left) / r.width) * 320),
-                  Math.round(((e.clientY - r.top) / r.height) * 180),
+                  ((e.clientX - r.left) / r.width) * 100,
+                  ((e.clientY - r.top) / r.height) * 100,
                 ]);
               }}
             >
@@ -124,14 +143,6 @@ export default function Zones() {
                   <stop offset="1" stopColor="#000000" stopOpacity="0.55" />
                 </radialGradient>
               </defs>
-
-              <rect width="320" height="180" fill="#161c25" />
-              <rect y="72" width="320" height="180" fill="#0f141b" />
-              <rect y="72" width="320" height="1" fill="#ffffff" opacity="0.07" />
-              <rect x="52" y="0" width="1.5" height="180" fill="#ffffff" opacity="0.03" />
-              <rect x="238" y="0" width="1.5" height="180" fill="#ffffff" opacity="0.03" />
-              <rect width="320" height="180" fill="url(#zlight)" />
-              <rect width="320" height="180" fill="url(#zvignette)" />
 
               {camZones.map((z, ci) => {
                 const color = ZONE_COLORS[ci % ZONE_COLORS.length];
@@ -190,7 +201,7 @@ export default function Zones() {
               </Badge>
               {hover && mode === "draw" && (
                 <span className="rounded bg-black/60 px-2 py-0.5 font-mono text-[10px] text-obs-info backdrop-blur-sm">
-                  X: {hover[0]} · Y: {hover[1]}
+                  X: {hover[0].toFixed(0)} · Y: {hover[1].toFixed(0)}
                 </span>
               )}
             </div>

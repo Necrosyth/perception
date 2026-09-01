@@ -255,8 +255,7 @@ export async function getZones(): Promise<ZoneRow[] | null> {
 }
 
 export async function createZone(camera: string, name: string, polygon: number[][]): Promise<ZoneRow | null> {
-  const sp = new URLSearchParams({ camera, name });
-  return mutateJson<ZoneRow>(`/api/zones?${sp.toString()}`, "POST", { polygon });
+  return mutateJson<ZoneRow>(`/api/zones`, "POST", { camera, name, polygon });
 }
 
 export async function deleteZone(id: string): Promise<boolean> {
