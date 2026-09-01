@@ -98,6 +98,8 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
       PERCEPTION_GPU_INDEX: ${PERCEPTION_GPU_INDEX:-0}
       ENGINE_CACHE: ${ENGINE_CACHE:-/.engine_cache}
+      HF_HOME: /.engine_cache/hf
+      HF_HUB_CACHE: /.engine_cache/hf/hub
       AINA_MODELS_DIR: /etc/aina/models
       AINA_INGEST: rtsp
       GO2RTC_HOST: media
