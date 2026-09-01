@@ -17,9 +17,11 @@ streams:
   # https://github.com/brehldev/va_vdot_public_cameras for the full catalog.
   loading_dock:
     url: rtsp://media-sfs8.vdotcameras.com:554/rtplive/FairfaxVideo0231
+    on_demand: false  # always keep the source connected — no cold-start delay when a tile opens
 
   warehouse_east:
     url: rtsp://media-sfs8.vdotcameras.com:554/rtplive/FairfaxVideo0640
+    on_demand: false  # always keep the source connected — no cold-start delay when a tile opens
 
   # ── Swapping in your own camera ─────────────────────────────────────────
   # Point any stream at your own RTSP feed; go2rtc re-encodes to browser-safe
