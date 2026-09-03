@@ -77,6 +77,112 @@ cp .env.example .env        # edit camera sources
 docker compose up --build  # from the repo root
 ```
 
+## Prebuilt GHCR images (run anywhere, no build)
+
+All five AIna services are published as container images on the GitHub
+Container Registry under the `Hypotenuse-Analytics` org:
+
+| Service    | Image                                                            |
+| ---------- | ---------------------------------------------------------------- |
+| API        | `ghcr.io/hypotenuse-analytics/aina-sentinel-api`                 |
+| Dashboard  | `ghcr.io/hypotenuse-analytics/aina-sentinel-dashboard`           |
+| Docs       | `ghcr.io/hypotenuse-analytics/aina-sentinel-docs`                |
+| Media      | `ghcr.io/hypotenuse-analytics/aina-sentinel-media`               |
+| Perception | `ghcr.io/hypotenuse-analytics/aina-sentinel-perception`          |
+
+Each is tagged `latest` and `v0.1.0-alpha`.
+
+`deploy/docker-compose.ghcr.yml` wires the prebuilt images together with
+upstream `pgvector` — **no build step** (no npm / uv / pip) and **no
+host-file mounts**. Every service is fully self-contained inside its image.
+
+It is **CPU-safe by default**: the perception image auto-detects CUDA and
+falls back to CPU, so it runs on a plain Windows / Docker Desktop machine
+with no GPU or NVIDIA Container Toolkit.
+
+### Prerequisites
+
+**Docker with the Compose v2 plugin** — that's it. No Python, npm, uv,
+or NVIDIA toolkit required (GPU acceleration is optional).
+
+### Quick start
+
+```bash
+# 1. Clone the repo (carries the compose file + .env template)
+git clone https://github.com/Hypotenuse-Analytics/perception.git
+cd perception
+
+# 2. (Optional) tune ports / Postgres credentials
+cp .env.example .env
+
+# 3. Log in to GHCR (org members — packages are private until made public)
+echo $CR_PAT | docker login ghcr.io -u <your-github-username> --password-stdin
+
+# 4. Pull and start
+docker compose -f deploy/docker-compose.ghcr.yml up -d
+```
+
+**Done.** Open:
+
+| Endpoint  | URL                        |
+| --------- | -------------------------- |
+| Dashboard | http://localhost:3000       |
+| API       | http://localhost:5000/health |
+| Docs      | http://localhost:3001       |
+
+The API auto-applies the Postgres schema on first boot (9 tables). The
+perception service downloads YOLO weights on first run (~30 MB) into a
+Docker volume (`engine_cache`), so subsequent restarts are instant.
+
+### Windows
+
+```powershell
+.\run-ghcr.ps1           # CPU — no GPU needed
+.\run-ghcr.ps1 up -Gpu   # NVIDIA GPU acceleration (needs toolkit)
+.\run-ghcr.ps1 status    # container states + endpoints
+.\run-ghcr.ps1 down      # stop
+```
+
+Or via the batch wrapper: `run-ghcr.bat up`
+
+### Linux / macOS
+
+```bash
+./run-ghcr.sh            # CPU
+./run-ghcr.sh --gpu      # NVIDIA GPU acceleration
+```
+
+### GPU acceleration (optional)
+
+Add the NVIDIA runtime overlay for hosts with a GPU + Container Toolkit
+(WSL2 GPU passthrough on Windows):
+
+```bash
+docker compose -f deploy/docker-compose.ghcr.yml \
+               -f deploy/docker-compose.ghcr.gpu.yml up -d
+```
+
+### What happens on first run
+
+1. `postgres` starts and waits for health check.
+2. `media` starts go2rtc with the baked config; connects to both camera
+   streams (live VA-DOT traffic cams).
+3. `api` starts, auto-applies the Postgres schema, connects to the DB.
+4. `dashboard` serves the React SPA; proxies `/api` to the API.
+5. `docs` serves the Docusaurus documentation.
+6. `perception` loads YOLO26s (downloads weights if needed), connects to
+   the go2rtc restreams, begins detection + tracking + persistence.
+7. `recorder` captures MP4 segments from the go2rtc streams.
+
+Everything boots automatically in ~30 seconds. No manual migration,
+no manual configuration, no host files.
+
+### Republishing the images
+
+`deploy/build-push.sh` builds and pushes all five images. It uses
+`gh auth token` for GHCR auth, so the token needs the `write:packages`
+scope.
+
 ## Non-negotiable architecture rules (from the build prompt)
 
 1. No perception module imports another module — communication only via `requires()`/`produces()` on the orchestrator.

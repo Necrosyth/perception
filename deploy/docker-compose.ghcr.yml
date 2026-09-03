@@ -1,0 +1,125 @@
+name: aina-sentinel
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  AIna Sentinel — distributable stack (prebuilt GHCR images, no build step).
+#
+#  Pulls the four AIna images from GHCR plus upstream go2rtc + pgvector.
+#  Everything is CPU-safe by default (the perception image auto-falls back to
+#  CPU when no GPU is present) so it runs on plain Windows / Docker Desktop
+#  machines with no NVIDIA toolkit. GPU users add the overlay:
+#
+#      docker compose -f deploy/docker-compose.ghcr.yml \
+#                     -f deploy/docker-compose.ghcr.gpu.yml up -d
+#
+#  "Anyone can run it": all you need is Docker with Compose v2. Create a `.env`
+#  (copy `.env.example`) to tune ports / postgres credentials.
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-aina-version: &aina-version v0.1.0-alpha
+
+services:
+  media:
+    image: ghcr.io/hypotenuse-analytics/aina-sentinel-media:${AINA_VERSION:-v0.1.0-alpha}
+    restart: unless-stopped
+    ports:
+      - "${GO2RTC_PORT:-1984}:1984"
+    logging:
+      options:
+        max-size: "10m"
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aina_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aina_sentinel}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aina} -d ${POSTGRES_DB:-aina_sentinel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ghcr.io/hypotenuse-analytics/aina-sentinel-api:${AINA_VERSION:-v0.1.0-alpha}
+    restart: unless-stopped
+    environment:
+      DEPLOYMENT_TARGET: ${DEPLOYMENT_TARGET:-aws}
+      POSTGRES_USER: ${POSTGRES_USER:-aina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aina_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aina_sentinel}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    ports:
+      - "${API_PORT:-5000}:5000"
+    volumes:
+      - recordings:/recordings:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  recorder:
+    image: ghcr.io/hypotenuse-analytics/aina-sentinel-media:${AINA_VERSION:-v0.1.0-alpha}
+    restart: unless-stopped
+    entrypoint: ["/config/record.sh"]
+    volumes:
+      - recordings:/recordings
+    environment:
+      GO2RTC_RTSP_PORT: "8554"
+      RECORD_DIR: /recordings
+      SEGMENT_SECONDS: "60"
+    depends_on:
+      - media
+
+  dashboard:
+    image: ghcr.io/hypotenuse-analytics/aina-sentinel-dashboard:${AINA_VERSION:-v0.1.0-alpha}
+    restart: unless-stopped
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    volumes:
+      - recordings:/recordings:ro
+    depends_on:
+      - api
+      - media
+
+  docs:
+    image: ghcr.io/hypotenuse-analytics/aina-sentinel-docs:${AINA_VERSION:-v0.1.0-alpha}
+    restart: unless-stopped
+    ports:
+      - "${DOCS_PORT:-3001}:80"
+    depends_on:
+      - api
+
+  perception:
+    image: ghcr.io/hypotenuse-analytics/aina-sentinel-perception:${AINA_VERSION:-v0.1.0-alpha}
+    restart: unless-stopped
+    environment:
+      DEPLOYMENT_TARGET: ${DEPLOYMENT_TARGET:-aws}
+      PERCEPTION_GPU_INDEX: ${PERCEPTION_GPU_INDEX:-0}
+      ENGINE_CACHE: /.engine_cache
+      HF_HOME: /.engine_cache/hf
+      HF_HUB_CACHE: /.engine_cache/hf/hub
+      AINA_MODELS_DIR: /etc/aina/models
+      AINA_INGEST: rtsp
+      GO2RTC_HOST: media
+      GO2RTC_RTSP_PORT: "8554"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-aina}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aina_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aina_sentinel}
+    volumes:
+      - engine_cache:/.engine_cache
+    depends_on:
+      - media
+      - api
+      - postgres
+
+volumes:
+  pgdata:
+  engine_cache:
+  recordings:

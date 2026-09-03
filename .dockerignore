@@ -1,0 +1,34 @@
+# VCS
+.git
+.gitignore
+
+# Env (secrets may be in .env)
+.env
+.env.*
+!.env.example
+
+# Node
+dashboard/node_modules
+docs/node_modules
+**/node_modules
+
+# Python
+perception/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+
+# Docs tooling
+docs/.docusaurus
+
+# Reference / read-only upstream
+reference/
+
+# Build outputs already baked into images
+deploy/media/
+
+# Local junk
+*.mp4
+*.zst
+*.pem
+demo_*

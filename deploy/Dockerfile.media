@@ -1,0 +1,14 @@
+# AIna Sentinel — media image (go2rtc config + recorder script baked in).
+#
+# Used by BOTH the `media` service (go2rtc restream, default CMD) and the
+# `recorder` service (runs /config/record.sh to capture MP4 segments). Baking
+# the config + recorder into the image removes every host-file requirement, so
+# the prebuilt stack runs with just Docker + a single compose file.
+FROM alexxit/go2rtc:latest
+
+# go2rtc: keep the default CMD ("go2rtc -config /config/go2rtc.yaml").
+COPY media/go2rtc.yaml /config/go2rtc.yaml
+
+# recorder: busybox sh script (uses #!/bin/sh), ffmpeg ships in the base image.
+COPY media/record.sh /config/record.sh
+RUN chmod +x /config/record.sh
